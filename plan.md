@@ -66,44 +66,44 @@ Every stage below separates **Obligatory Tasks** (required for full completion o
 ### Stage 1: Crawling & Scraping *(Graded Step 1)*
 
 #### Obligatory Tasks
-- [ ] Select corpus scope: **English Wikipedia** (e.g., seeded across 5–10 distinct topics so recommendations and cross-topic boundaries are clear to test) or a rich **English Fandom Wiki** with >= 1,000 substantive content articles.
-- [ ] Build a crawler/scraper (`src/wiki_recommender/crawler/`) that collects **at least 1,000 unique articles**.
-- [ ] Extract clean article content for each page:
+- [x] Select corpus scope: **English Wikipedia** (e.g., seeded across 5–10 distinct topics so recommendations and cross-topic boundaries are clear to test) or a rich **English Fandom Wiki** with >= 1,000 substantive content articles.
+- [x] Build a crawler/scraper (`src/wiki_recommender/crawler/`) that collects **at least 1,000 unique articles**.
+- [x] Extract clean article content for each page:
   - Canonical `url`
   - Exact article `title`
   - Clean `raw_text` (main article body without navigation menus, edit links, tables of contents, reference lists, or footer boilerplate)
-- [ ] Enforce polite crawling practices:
+- [x] Enforce polite crawling practices:
   - Custom descriptive `User-Agent` header (required by Wikimedia API / robot policies)
   - Rate limiting / request throttling and retry backoff
   - URL canonicalization and deduplication
   - Filtering out non-article namespaces (`Special:`, `Category:`, `File:`, `Talk:`), disambiguation pages, and ultra-short stubs (e.g., `< 100` words)
-- [ ] Save scraped output to `data/raw/articles_raw.parquet` (or `.csv`).
+- [x] Save scraped output to `data/raw/articles_raw.parquet` (or `.csv`).
 
 #### Non-Obligatory / Optional Tasks
 - [ ] **Using Scrapy** — *explicitly stated in the assignment PDF: "Scrapy is not a must"*. Lighter tools (`requests`/`httpx` + `BeautifulSoup4`, or the official MediaWiki Action/REST API) are completely acceptable.
 - [ ] Asynchronous concurrent fetching (`httpx.AsyncClient` / `aiohttp`) with bounded semaphore rate limits.
-- [ ] Scraping extra structural metadata for hybrid recommendations and richer report statistics:
+- [x] Scraping extra structural metadata for hybrid recommendations and richer report statistics:
   - Article `categories`
   - Outgoing internal wiki `links`
   - Section headings or lead-paragraph (`summary`) separation
-- [ ] Scaling the corpus beyond the minimum (e.g., **3,000–10,000 articles**) for denser topic coverage.
+- [x] Scaling the corpus beyond the minimum (e.g., **3,000–10,000 articles**) for denser topic coverage.
 
 ---
 
 ### Stage 2: Text Preprocessing — Stemming & Lemmatization *(Graded Step 2)*
 
 #### Obligatory Tasks
-- [ ] Clean text artifacts left from wiki pages (citation brackets like `[1]`, leftover markup, URLs, non-textual symbols, excessive whitespace).
-- [ ] Tokenize documents, normalize case, and remove English stopwords and pure punctuation/numeric noise.
-- [ ] Implement **stemming** (e.g., NLTK `SnowballStemmer("english")` or `PorterStemmer`) and **lemmatization** (e.g., `spaCy` `en_core_web_sm` or NLTK `WordNetLemmatizer` with POS tags).
-- [ ] Transform the corpus into the most suitable preprocessed representation for retrieval (and justify the choice of lemmatization vs. stemming in the report).
-- [ ] Persist the preprocessed dataset to **`data/processed/articles_processed.parquet`** or **`.csv`** (`.parquet` via `pyarrow` is recommended for compact size and preserving token lists).
+- [x] Clean text artifacts left from wiki pages (citation brackets like `[1]`, leftover markup, URLs, non-textual symbols, excessive whitespace).
+- [x] Tokenize documents, normalize case, and remove English stopwords and pure punctuation/numeric noise.
+- [x] Implement **stemming** (e.g., NLTK `SnowballStemmer("english")` or `PorterStemmer`) and **lemmatization** (e.g., `spaCy` `en_core_web_sm` or NLTK `WordNetLemmatizer` with POS tags).
+- [x] Transform the corpus into the most suitable preprocessed representation for retrieval (and justify the choice of lemmatization vs. stemming in the report).
+- [x] Persist the preprocessed dataset to **`data/processed/articles_processed.parquet`** or **`.csv`** (`.parquet` via `pyarrow` is recommended for compact size and preserving token lists).
 
 #### Non-Obligatory / Optional Tasks
 - [ ] **Storing the dataset in a database** (SQLite, PostgreSQL, DuckDB, MongoDB, ChromaDB) — *the assignment specifies `.csv`/`.parquet` **or** a database, so a standalone database engine is not required if `.parquet` or `.csv` is used*.
-- [ ] Keeping **both** `stemmed_text` and `lemmatized_text` columns in `articles_processed.parquet` to benchmark their recommendation quality side-by-side in the report.
+- [x] Keeping **both** `stemmed_text` and `lemmatized_text` columns in `articles_processed.parquet` to benchmark their recommendation quality side-by-side in the report.
 - [ ] Bigram / keyphrase detection (e.g., keeping `"machine_learning"` or `"world_war"` together via `scikit-learn` `ngram_range=(1, 2)` or `gensim` `Phrases`).
-- [ ] Title/lead-paragraph term boosting (preserving separate processed fields for title/summary vs. full body).
+- [x] Title/lead-paragraph term boosting (preserving separate processed fields for title/summary vs. full body).
 
 ---
 
@@ -243,13 +243,25 @@ Agreeing on exact column names lets both students work in parallel from day one:
    - `url` (`str`): Full canonical URL (e.g., `"https://en.wikipedia.org/wiki/Information_retrieval"`)
    - `raw_text` (`str`): Clean plain-text body of the article
    - `categories` (`list[str]`, *optional*): Wiki categories associated with the page
-   - `outlinks` (`list[str]`, *optional*): Outgoing internal article titles
+   - `outlinks` (`list[str]`, *optional*): Outgoing internal article titles, as linked (some may be redirects)
+   - `summary` (`str`): Lead section only (useful for title/lead term boosting)
+   - `sections` (`list[str]`): Section headings, which are not part of `raw_text`
+   - `topic` (`str`): One of the 11 Vital articles topics (useful for category-overlap evaluation)
+   - `seed_section` (`str`): Subsection of the Vital articles list the article was taken from
+   - `vital_level` (`int`): Importance level from 1 (most vital) to 5
+   - `word_count` (`int`): Number of whitespace-separated words in `raw_text`
+   - `revision_id` (`int`), `retrieved_at` (`str`, ISO 8601 UTC): Exact page version and fetch time
 
 2. **`data/processed/articles_processed.parquet`** *(produced by Stage 2, consumed by Stages 3–5)*:
-   - Inherits `article_id`, `title`, `url`, `raw_text` (or `word_count: int`)
-   - `tokens_lemmatized` (`list[str]`): Cleaned, stopword-filtered lemmatized tokens
-   - `tokens_stemmed` (`list[str]`): Cleaned, stopword-filtered stemmed tokens
-   - `processed_text` (`str`): Space-joined canonical tokens ready for `TfidfVectorizer`
+   - Inherits `article_id`, `title`, `url`, `summary`, `word_count`, `outlinks`, `sections`, `topic`, `vital_level` (`raw_text` is dropped to keep the file small)
+   - `categories` (`list[str]`): Raw categories without Wikipedia maintenance ones (`Articles with ...`, `Living people`)
+   - `seed_section` (`str`): Vital articles subsection with HTML anchors removed
+   - `tokens_lemmatized` (`list[str]`): Cleaned, stopword-filtered lemmas of lead + body, in text order
+   - `tokens_stemmed` (`list[str]`): Snowball stems of the same words, aligned 1:1 with `tokens_lemmatized`
+   - `token_count` (`int`), `lead_token_count` (`int`): `tokens_lemmatized[:lead_token_count]` is the lead
+   - `tokens_definition`, `tokens_definition_stemmed` (`list[str]`): First full lead paragraph (what the article *is*)
+   - `categories_lemmatized` (`list[str]`): One space-joined lemmatized string per category
+   - `processed_text` (`str`): Space-joined definition + article lemmas + `cat:`-prefixed category tokens
 
 ---
 
