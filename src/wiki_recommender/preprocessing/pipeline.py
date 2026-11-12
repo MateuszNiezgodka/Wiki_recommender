@@ -73,6 +73,36 @@ class PreprocessConfig:
     def stats_path(self) -> Path:
         return self.output.with_suffix(".stats.json")
 
+    @property
+    def repairs_path(self) -> Path:
+        return repairs_path(self.output)
+
+
+def repairs_path(output: Path) -> Path:
+    """Where the corpus-wide lemma repairs are kept, so a page processed later is lemmatized alike."""
+    return output.with_suffix(".repairs.json")
+
+
+def save_repairs(repairs: LemmaRepairs, path: Path) -> None:
+    payload = {"plurals": repairs.plurals, "names": repairs.names}
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+
+
+def load_repairs(path: Path) -> LemmaRepairs:
+    """Load saved repairs. Without them, marked tokens simply keep their surface form."""
+    if not path.exists():
+        log.warning("No lemma repairs at %s; new pages will be lemmatized without them", path)
+        return LemmaRepairs()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return LemmaRepairs(plurals=payload["plurals"], names=payload["names"])
+
+
+def process_article(nlp, raw: dict[str, Any], repairs: LemmaRepairs) -> dict[str, Any]:
+    """Preprocess one article outside the corpus run, such as a page fetched at query time."""
+    (article,), _ = tokenize_rows(nlp, [(0, raw)])
+    article.lemmas = {name: repairs.apply(text) for name, text in article.lemmas.items()}
+    return build_record(raw, article)
+
 
 @dataclass
 class TokenizedArticle:
@@ -105,10 +135,17 @@ def article_fields(row: dict[str, Any]) -> dict[str, list[str]]:
 
 def tokenize_chunk(rows: list[tuple[int, dict[str, Any]]]) -> tuple[list[TokenizedArticle], LemmaEvidence]:
     """Tokenize a chunk of articles in a worker process."""
+    return tokenize_rows(_nlp, rows)
+
+
+def tokenize_rows(
+    nlp, rows: list[tuple[int, dict[str, Any]]]
+) -> tuple[list[TokenizedArticle], LemmaEvidence]:
+    """Tokenize articles with the given spaCy pipeline. Lemmas still need `LemmaRepairs.apply`."""
     evidence = LemmaEvidence()
     fields_per_article = [article_fields(row) for _, row in rows]
     texts = [text for fields in fields_per_article for name in _FIELDS for text in fields[name]]
-    tokenized = iter(tokenize_texts(_nlp, texts, evidence))
+    tokenized = iter(tokenize_texts(nlp, texts, evidence))
 
     articles = []
     for (index, _), fields in zip(rows, fields_per_article, strict=True):
@@ -247,6 +284,7 @@ def process_corpus(config: PreprocessConfig) -> dict[str, Any]:
             writer.write_table(pa.Table.from_pylist(batch, schema=PROCESSED_SCHEMA))
     temporary.replace(config.output)
 
+    save_repairs(repairs, config.repairs_path)
     stats = summarize(raw_vocabulary, lemma_counts, stem_counts, token_counts, definition_counts, repairs)
     config.stats_path.write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
     log.info("Saved %d articles to %s", len(rows), config.output)

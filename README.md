@@ -102,6 +102,7 @@ Lower `--workers` if memory is short. Run either command with `--help` for every
 | :--- | :--- |
 | `articles_processed.parquet` | The processed corpus, consumed by Stages 3-5 (schema in [`plan.md`](./plan.md)) |
 | `articles_processed.stats.json` | Token counts, vocabulary sizes (raw, lemmas, stems) and the most frequent lemmas and stems |
+| `articles_processed.repairs.json` | Corpus-wide lemma repairs, so a page fetched later (Stage 3) is lemmatized the same way |
 | `representation_eval.json` | Retrieval quality of each compared representation, written by `evaluate` |
 
 ### Cleaning
@@ -141,3 +142,76 @@ Paired bootstrap intervals (95 %) confirm both choices: the final representation
 ### Document parts
 
 Each article also keeps its **definition** (the first full lead paragraph, which says what the subject is), the length of its lead, and its lemmatized categories. `processed_text` joins definition, article and `cat:`-prefixed category tokens for a plain `TfidfVectorizer`, while `DocumentVectorizer` in [`vectors.py`](./src/wiki_recommender/preprocessing/vectors.py) weights the parts separately: whole article + 0.5 × definition for the text, plus 0.25 × categories.
+
+## Stage 3: Recommendations
+
+```bash
+uv run python -m wiki_recommender.recommender "Dog" "https://en.wikipedia.org/wiki/Cat" -k 10
+uv run python -m wiki_recommender.recommender --build                 # (re)build data/processed/recommender.pkl
+uv run python -m wiki_recommender.recommender.evaluate                # measurements behind the settings, ~15 min
+```
+
+```python
+from wiki_recommender.recommender import recommend
+
+result = recommend(["Dog", "https://en.wikipedia.org/wiki/Cat"], top_k=10)
+print(result)                                   # table of title, score and shared terms
+result.recommendations[0].url                   # each item also has by_visited, by_signal and shared_terms
+```
+
+The first query builds the model if `data/processed/recommender.pkl` is missing: about 30 s with cached embeddings, or roughly 20 min on CPU to embed the corpus first. A query then takes a few seconds. `--offline` never contacts Wikipedia, and `--json` prints the full result.
+
+**Input.** Titles and URLs can be mixed. Titles match regardless of case, accents, underscores and punctuation (`sao paulo` finds *São Paulo*). URLs may be desktop or mobile, percent-encoded, or carry a `#section`. An article outside the corpus is fetched from Wikipedia, processed with the Stage 1 extraction and Stage 2 preprocessing, and used like any visited article. A redirect such as *USA* resolves to the corpus article *United States*. Inputs that cannot be used are reported with the reason and close titles (`Elektron` → *Electron*; `Mercury` → *Mercury (planet)*, *Mercury (element)*).
+
+**Output.** The top-k corpus articles, never including a visited one, each with its title, URL and a score in [0, 1]. Each also carries its similarity to every visited article, its mean similarity per signal, and the terms that contribute most to its text similarity.
+
+### Scoring
+
+Three signals compare two articles, each a cosine similarity in [0, 1]:
+
+| Signal | Representation | Weight |
+| :--- | :--- | ---: |
+| Text | Stage 2 TF-IDF: lemmas + 0.5 × definition, + 0.25 × categories | 0.55 |
+| Links | TF-IDF over the pages an article links to, plus its own title, so shared and direct links both count | 0.05 |
+| Embedding | `BAAI/bge-small-en-v1.5` sentence embedding of the title and the first 150 words | 0.40 |
+
+$$s(v, c) = 0.55\,\cos_{\text{text}}(v, c) + 0.05\,\cos_{\text{links}}(v, c) + 0.40\,\max\big(0, \cos_{\text{emb}}(v, c)\big)$$
+
+A history $V$ is first split into **interests**: visited articles are clustered with average linkage, and two stay together while their mean similarity is at least 0.3. For a candidate $c \notin V$ and interest $I$:
+
+$$\text{score}_I(c) = \frac{1}{|I|} \sum_{v \in I} s(v, c), \qquad \text{score}(c) = \max_I\, \text{score}_I(c)$$
+
+The list's slots are shared between interests in proportion to their size, each interest contributing its best-scoring candidates, and the final list is sorted by score. With a single interest this is the plain mean, which ranks exactly like the centroid of the visited articles.
+
+### Choosing the settings
+
+`recommender.evaluate` compares only the embedding variants already cached in `data/processed/embeddings/` (a fresh `--build` caches bge-small) and skips the others with a warning. It uses the relevance signals of Stage 2: the same Vital articles subsection, and a shared category from a held-out half that no signal sees. Weights and aggregation were chosen on half of the articles; the numbers below come from the other half (4,407 articles).
+
+**Single articles** (share of the 10 nearest neighbours that are related):
+
+| Signals | Score | Same subsection | Shared held-out category |
+| :--- | ---: | ---: | ---: |
+| Links only | 0.252 | 0.305 | 0.200 |
+| MiniLM-L6 embedding only | 0.277 | 0.335 | 0.218 |
+| bge-small embedding only | 0.289 | 0.345 | 0.232 |
+| Text only (Stage 2) | 0.313 | 0.374 | 0.252 |
+| **Text + links + bge-small** | **0.332** | **0.400** | **0.264** |
+
+Text and embeddings complement each other: together they beat text alone by +0.016 [+0.013, +0.018] (95 % paired bootstrap). Links add almost nothing on top, as the text already contains the link anchors, so they keep a small weight. Embedding up to 6 passages per article instead of 1 did not help once combined with text. Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
+
+**Histories of visited articles** (two interests: 3 + 2 articles from subsections of different topics; *coverage* is the share of interests that get at least one recommendation):
+
+| Aggregation | 1 interest, 3 articles | 1 interest, 5 articles | 2 interests | Coverage, 2 interests |
+| :--- | ---: | ---: | ---: | ---: |
+| Mean (centroid) | 0.406 | 0.431 | 0.502 | 0.68 |
+| Power mean, p = 4 | 0.395 | 0.424 | 0.548 | 0.77 |
+| Maximum | 0.367 | 0.372 | 0.532 | 0.79 |
+| **Interests (threshold 0.3)** | **0.403** | **0.428** | **0.609** | **0.93** |
+
+Splitting a history into interests costs almost nothing when it has one topic (−0.003) and gains +0.107 [+0.094, +0.120] over the mean when it has two, because the mean favours articles that sit between both topics and match neither well.
+
+| Output in `data/processed/` | Contents |
+| :--- | :--- |
+| `recommender.pkl` | The fitted model: vectors of every signal, vectorizers and settings |
+| `embeddings/*.npz` | Cached passage embeddings per model, reused by `--build` and `evaluate` |
+| `recommender_eval.json` | Every measurement above, including all weight and aggregation candidates |

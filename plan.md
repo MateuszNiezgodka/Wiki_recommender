@@ -110,27 +110,27 @@ Every stage below separates **Obligatory Tasks** (required for full completion o
 ### Stage 3: Similarities & Recommendation Engine *(Graded Step 3)*
 
 #### Obligatory Tasks
-- [ ] Support **both input formats** seamlessly:
+- [x] Support **both input formats** seamlessly:
   - A list of **article titles** (with case-insensitive / normalized lookup)
   - A list of **article URLs/links** (normalized to match stored URLs or titles)
-- [ ] Build document vector representations over the preprocessed corpus (e.g., **TF-IDF** matrix with sublinear term frequency scaling via `scikit-learn`).
-- [ ] Compute document-to-document similarity (e.g., **cosine similarity**).
-- [ ] Define and implement a clear **multi-article scoring algorithm** when the user provides a history of $m \ge 1$ visited articles $V = \{v_1, \dots, v_m\}$:
+- [x] Build document vector representations over the preprocessed corpus (e.g., **TF-IDF** matrix with sublinear term frequency scaling via `scikit-learn`).
+- [x] Compute document-to-document similarity (e.g., **cosine similarity**).
+- [x] Define and implement a clear **multi-article scoring algorithm** when the user provides a history of $m \ge 1$ visited articles $V = \{v_1, \dots, v_m\}$:
   - Example baseline: **Centroid / Mean Profile Scoring** (average L2-normalized TF-IDF vector of visited articles compared via cosine similarity to every candidate article $c \notin V$), or **Mean/Max Pairwise Similarity** across $v \in V$.
-- [ ] **Exclude already-visited input articles** ($V$) from the returned recommendation list.
-- [ ] Return top-$k$ recommended articles containing:
+- [x] **Exclude already-visited input articles** ($V$) from the returned recommendation list.
+- [x] Return top-$k$ recommended articles containing:
   - Recommended article **title** and **link/URL**
   - Numerical **recommendation score** (clearly bounded and interpretable, e.g., `[0.0, 1.0]`)
 
 #### Non-Obligatory / Optional Tasks
-- [ ] **On-the-fly fallback for unseen input links/titles**: if a user inputs a valid Wikipedia URL/title that is not among the 1,000+ local articles, fetch and preprocess that single page on the fly so the system can still recommend matches from the local database.
-- [ ] Comparing multiple multi-article aggregation strategies (mean profile centroid vs. max-similarity for multi-interest histories vs. recency-weighted history).
-- [ ] Alternative / advanced retrieval models for comparison:
-  - **BM25** lexical ranking (`rank-bm25`)
-  - **Latent Semantic Analysis (LSA / `TruncatedSVD`)** on TF-IDF
-  - **Dense semantic embeddings** (`sentence-transformers`, e.g., `all-MiniLM-L6-v2`)
-  - **Hybrid scoring** combining text cosine similarity + wiki category/outlink Jaccard similarity
-- [ ] Diversity re-ranking (e.g., **Maximal Marginal Relevance — MMR**) so top recommendations aren't near-duplicates.
+- [x] **On-the-fly fallback for unseen input links/titles**: if a user inputs a valid Wikipedia URL/title that is not among the 1,000+ local articles, fetch and preprocess that single page on the fly so the system can still recommend matches from the local database.
+- [x] Comparing multiple multi-article aggregation strategies (mean profile centroid vs. max-similarity for multi-interest histories vs. recency-weighted history). *Done: mean, power means, max and interest clustering; no recency, as inputs carry no timestamps.*
+- [x] Alternative / advanced retrieval models for comparison:
+  - **BM25** lexical ranking (`rank-bm25`) — *not done*
+  - **Latent Semantic Analysis (LSA / `TruncatedSVD`)** on TF-IDF — *not done; dense embeddings cover semantic similarity*
+  - **Dense semantic embeddings** (`sentence-transformers`, e.g., `all-MiniLM-L6-v2`) — *done: MiniLM-L6 and bge-small compared, bge-small used*
+  - **Hybrid scoring** combining text cosine similarity + wiki category/outlink Jaccard similarity — *done: text + outlinks + embeddings, weights tuned*
+- [ ] Diversity re-ranking (e.g., **Maximal Marginal Relevance — MMR**) so top recommendations aren't near-duplicates. *Interest clustering covers multi-topic histories instead.*
 
 ---
 
