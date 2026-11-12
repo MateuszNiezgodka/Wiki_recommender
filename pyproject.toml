@@ -13,7 +13,9 @@ dependencies = [
     "en-core-web-sm",
     "httpx>=0.28.1",
     "lxml>=6.1.3",
+    "matplotlib>=3.11.2",
     "nltk>=3.10.4",
+    "pandas>=3.1.1",
     "pyarrow>=26.0.1",
     "scikit-learn>=1.9.1",
     "sentence-transformers>=6.2.0",
@@ -25,6 +27,7 @@ packages = ["src/wiki_recommender"]
 
 [dependency-groups]
 dev = [
+    "jupyter>=1.1.1",
     "pytest>=9.2.0",
     "ruff>=0.17.4",
 ]

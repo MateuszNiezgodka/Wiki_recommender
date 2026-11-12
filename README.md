@@ -2,7 +2,19 @@
 
 Content-based recommender system for English Wikipedia / Fandom wiki articles built for the **Information Retrieval (`[IR]`)** course at Poznan University of Technology.
 
-Given a collection of previously visited articles (as **titles** or **URLs**), the system recommends the most relevant unseen articles from a local corpus of 1,000+ preprocessed wiki pages along with numerical similarity scores and visual score explanations.
+Given a collection of previously visited articles (as **titles** or **URLs**), the system recommends the most relevant unseen articles from a local corpus of 8,800 preprocessed Wikipedia pages, each with a score in [0, 1] and a graphical explanation of that score.
+
+**Report:** [`reports/final_report.pdf`](./reports/final_report.pdf), also as an executed notebook, [`notebooks/final_report.ipynb`](./notebooks/final_report.ipynb).
+
+## Quick start
+
+```bash
+uv sync                                          # Python >= 3.14 and uv, see Setup below
+uv run python -m wiki_recommender.download       # the built corpus and model (~400 MB) into data/
+uv run python -m wiki_recommender.recommender "Dog" "https://en.wikipedia.org/wiki/Cat" -k 10
+```
+
+To give your own list in a notebook, open [`notebooks/02_recommender_demo.ipynb`](./notebooks/02_recommender_demo.ipynb), edit `VISITED` in the first cell and run all cells (`uv run jupyter lab`). It prints the recommendations and draws their score breakdowns.
 
 ## Project Roadmap
 
@@ -27,10 +39,14 @@ Wiki_recommender/
 │       ├── crawler/          # Stage 1: Crawling & scraping (>= 1,000 articles)
 │       ├── preprocessing/    # Stage 2: Cleaning, stemming & lemmatization
 │       ├── recommender/      # Stage 3: Vectorization, similarity & multi-article scoring
-│       └── visualization/    # Stage 5: Corpus statistics & graphical prediction breakdowns
-├── notebooks/                # Interactive recommender interface, EDA & notebook report
+│       ├── visualization/    # Stage 5: Corpus statistics & graphical prediction breakdowns
+│       └── download.py       # Fetch (or pack) the built data, so nothing has to be rebuilt
+├── notebooks/
+│   ├── 02_recommender_demo.ipynb  # Stage 4: give a list of articles, get explained recommendations
+│   └── final_report.ipynb         # Stage 5: the report, executed
 ├── reports/
-│   └── figures/              # Exported charts and final PDF report
+│   ├── final_report.pdf      # The report as PDF (and .html)
+│   └── figures/              # Every chart of the report as PNG
 └── tests/                    # Unit tests
 ```
 
@@ -55,6 +71,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
+### Data
+
+`data/` is not in Git. `python -m wiki_recommender.download` fetches what Stages 3-5 read (processed corpus, fitted model, cached embeddings, statistics and measurements) from the repository's `data-v1` release and unpacks it. `--pack` builds that archive from a local `data/`, to attach it to a release. Without the archive, rebuild everything with the commands of Stages 1-3, about 2.5 hours in total.
 
 ## Stage 1: Building the Corpus
 
@@ -215,3 +235,42 @@ Splitting a history into interests costs almost nothing when it has one topic (�
 | `recommender.pkl` | The fitted model: vectors of every signal, vectorizers and settings |
 | `embeddings/*.npz` | Cached passage embeddings per model, reused by `--build` and `evaluate` |
 | `recommender_eval.json` | Every measurement above, including all weight and aggregation candidates |
+
+### Explanations
+
+Each recommendation also carries the parts its score is made of. With the default mean (p = 1) they add up exactly:
+
+$$\text{score}(c) = \sum_{\text{terms } w} 0.55\, u_w\, c_w + 0.05\,\overline{\cos}_{\text{links}} + 0.40\,\overline{\cos}_{\text{emb}} = \frac{1}{|I|}\sum_{v \in I} s(v, c)$$
+
+where $u$ is the mean text vector of the interest $I$. `signal_contributions` holds the three signal parts, `term_contributions` the largest shared terms of the text part, and `interest` the visited articles the score is averaged over.
+
+## Stage 4: Giving a List of Articles
+
+Three ways, all taking titles and URLs, mixed:
+
+| Way | How |
+| :--- | :--- |
+| Notebook | [`notebooks/02_recommender_demo.ipynb`](./notebooks/02_recommender_demo.ipynb): edit `VISITED` in the first cell, run all cells |
+| Command line | `uv run python -m wiki_recommender.recommender "Jazz" "Blues" -k 10` (`--json`, `--offline`, `--help`) |
+| Python | `recommend(["Jazz", "Blues"], top_k=10)` from `wiki_recommender.recommender` |
+
+## Stage 5: Report and Visualizations
+
+```python
+from wiki_recommender.recommender import recommend
+from wiki_recommender.visualization import explain, explain_result, plot_visited_heatmap
+
+result = recommend(["Dog", "Cat", "Quantum mechanics", "Electron"])
+explain_result(result)        # every score split by signal (left) and by visited article (right)
+explain(result, rank=1)       # one score as a waterfall of shared terms and signals
+plot_visited_heatmap(result)  # similarity of every visited article to every recommendation
+```
+
+[`visualization/corpus.py`](./src/wiki_recommender/visualization/corpus.py) draws the database statistics (composition, lengths, vocabulary, frequent and characteristic terms, similarity distributions, topic heatmap, t-SNE map) and [`visualization/evaluation.py`](./src/wiki_recommender/visualization/evaluation.py) the measurements above.
+
+```bash
+uv run jupyter nbconvert --to notebook --execute --inplace notebooks/final_report.ipynb   # ~2 min, refreshes reports/figures/
+uv run jupyter nbconvert --to html --output-dir reports notebooks/final_report.ipynb
+```
+
+`reports/final_report.pdf` is that HTML printed to PDF in a browser (here with headless Edge: `msedge --headless --print-to-pdf=reports/final_report.pdf reports/final_report.html`), since `nbconvert --to pdf` needs a LaTeX installation.

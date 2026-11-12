@@ -52,10 +52,10 @@ Every stage below separates **Obligatory Tasks** (required for full completion o
 ### Stage 0: Repository Setup, Environment & Data Contracts
 
 #### Obligatory Tasks
-- [ ] Initialize shared Git repository on GitHub and grant collaborator access to both teammates.
-- [ ] Standardize on Python `>=3.14` and manage dependencies in `pyproject.toml` (plus lockfile via `uv` or `pip`).
-- [ ] Agree on shared file schemas (`data/raw/articles_raw.parquet` and `data/processed/articles_processed.parquet`) so Stage 1, Stage 2, and Stage 3 can be developed in parallel.
-- [ ] Configure `.gitignore` so large raw scrapes and local virtual environments are not accidentally pushed to GitHub.
+- [x] Initialize shared Git repository on GitHub and grant collaborator access to both teammates.
+- [x] Standardize on Python `>=3.14` and manage dependencies in `pyproject.toml` (plus lockfile via `uv` or `pip`).
+- [x] Agree on shared file schemas (`data/raw/articles_raw.parquet` and `data/processed/articles_processed.parquet`) so Stage 1, Stage 2, and Stage 3 can be developed in parallel.
+- [x] Configure `.gitignore` so large raw scrapes and local virtual environments are not accidentally pushed to GitHub.
 
 #### Non-Obligatory / Optional Tasks
 - [ ] Set up GitHub Actions CI (`pytest` + `ruff` linter on pull requests).
@@ -137,8 +137,8 @@ Every stage below separates **Obligatory Tasks** (required for full completion o
 ### Stage 4: User Interaction / Entrypoint
 
 #### Obligatory Tasks
-- [ ] Provide an **easy, frictionless way** for the instructor to supply any list of visited article links/titles and immediately receive scored recommendations (e.g., a clean interactive cell block at the top of a demonstration Jupyter Notebook **and/or** a simple CLI command / Python helper function `recommend(visited=[...], top_k=10)`).
-- [ ] Handle invalid/unknown titles gracefully with clear feedback (e.g., fuzzy title suggestions via `difflib.get_close_matches`).
+- [x] Provide an **easy, frictionless way** for the instructor to supply any list of visited article links/titles and immediately receive scored recommendations (e.g., a clean interactive cell block at the top of a demonstration Jupyter Notebook **and/or** a simple CLI command / Python helper function `recommend(visited=[...], top_k=10)`).
+- [x] Handle invalid/unknown titles gracefully with clear feedback (e.g., fuzzy title suggestions via `difflib.get_close_matches`).
 
 #### Non-Obligatory / Optional Tasks
 - [ ] **Graphical User Interface (GUI) / Web App** — *explicitly stated in the assignment PDF: "GUI not required, notebook or any other reasonable form will be accepted"*. Building a Streamlit, Gradio, or FastAPI web frontend is purely optional polish.
@@ -148,24 +148,24 @@ Every stage below separates **Obligatory Tasks** (required for full completion o
 ### Stage 5: Corpus Statistics, Explainability & Final Report
 
 #### Obligatory Tasks
-- [ ] Choose report format: standalone **Jupyter Notebook (`.ipynb`)** with rendered outputs/plots or compiled **PDF report (`.pdf`)** (or export the final notebook cleanly to PDF).
-- [ ] **Algorithm & Scoring Explanation**:
+- [x] Choose report format: standalone **Jupyter Notebook (`.ipynb`)** with rendered outputs/plots or compiled **PDF report (`.pdf`)** (or export the final notebook cleanly to PDF).
+- [x] **Algorithm & Scoring Explanation**:
   - Document crawling strategy, filtering criteria, and corpus composition.
   - Explain text cleaning, stemming vs. lemmatization choices, and vectorization parameters.
   - Present the **exact mathematical formula** used to score candidate articles from a multi-article history.
-- [ ] **Database Statistics & Exploratory Visualizations**:
+- [x] **Database Statistics & Exploratory Visualizations**:
   - Total articles, vocabulary size (raw vs. after stopword removal vs. after stemming/lemmatization).
   - Top most frequent words / TF-IDF terms across the corpus (bar charts).
   - Histograms of article lengths (word count / token count distributions).
   - Pairwise document similarity statistics (e.g., histogram of pairwise cosine similarities, topic cluster heatmap, or 2D UMAP/PCA projection).
-- [ ] **Recommendation Examples with Explanations**:
+- [x] **Recommendation Examples with Explanations**:
   - Present several realistic user histories (single-topic history, multi-topic history, niche query) alongside top recommended articles, their scores, and clear explanations of *why* those articles were matched.
 
 #### Non-Obligatory / Strongly Recommended Bonus Tasks
-- [ ] **Graphical Prediction / Score Breakdowns** — *explicitly highlighted by the instructor: "I'd prefer graphical form - see prediction breakdowns for example"*:
+- [x] **Graphical Prediction / Score Breakdowns** — *explicitly highlighted by the instructor: "I'd prefer graphical form - see prediction breakdowns for example"*: *Done: `visualization/breakdown.py` (waterfall, per-signal and per-visited-article stacks, heatmap).*
   - **Term-contribution bar chart**: for a recommended article $c$, plot the top shared weighted terms $w_{t, u} \cdot w_{t, c}$ contributing most to $\text{score}(u, c)$ (similar to SHAP/LIME waterfall or horizontal contribution bars).
   - **Per-visited-article stacked bar chart**: when the user inputs multiple visited articles $[v_1, v_2, v_3]$, decompose each recommended article's score into how much came from $v_1$ vs. $v_2$ vs. $v_3$.
-- [ ] Quantitative offline evaluation (e.g., Hold-out Link Prediction Recall@$k$ — checking how often articles actually linked from $v$ appear in top-$k$ recommendations, or Category Overlap Precision@$k$).
+- [x] Quantitative offline evaluation (e.g., Hold-out Link Prediction Recall@$k$ — checking how often articles actually linked from $v$ appear in top-$k$ recommendations, or Category Overlap Precision@$k$). *Done: same-subsection and held-out-category precision@10, paired bootstrap (`*_eval.json`).*
 
 ---
 
@@ -223,9 +223,8 @@ Wiki_recommender/
 │           └── __init__.py
 │
 ├── notebooks/                        # Interactive exploration, demo interface & notebook report
-│   ├── 01_corpus_eda.ipynb           # (Planned) Database statistics, histograms & word frequencies
-│   ├── 02_recommender_demo.ipynb     # (Planned) Easy input interface + graphical breakdowns
-│   └── final_report.ipynb            # (Planned) Complete polished report if submitting as notebook
+│   ├── 02_recommender_demo.ipynb     # Easy input interface + graphical breakdowns
+│   └── final_report.ipynb            # The report (corpus statistics included), exported to reports/
 │
 ├── reports/                          # Exported report PDF and saved static figures
 │   └── figures/                      # High-res plots exported for the report
