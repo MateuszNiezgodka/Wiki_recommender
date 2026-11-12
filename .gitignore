@@ -37,3 +37,7 @@ Thumbs.db
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Shared data archive (python -m wiki_recommender.download)
+wiki_recommender_data.zip
+*.part

@@ -208,6 +208,28 @@ def test_explanations_name_shared_terms(offline):
     assert set(best.by_signal) == {"text", "links", "embedding"}
 
 
+@pytest.mark.parametrize("history", [["Electron"], ["Electron", "Photon"], ["Dog", "Wolf", "Electron"]])
+def test_signal_contributions_add_up_to_the_score(offline, history):
+    for item in offline.recommend(history, top_k=4).recommendations:
+        assert sum(item.signal_contributions.values()) == pytest.approx(item.score, abs=1e-3)
+
+
+def test_term_contributions_add_up_to_the_text_part(offline):
+    # The toy articles share fewer terms than are listed, so the listed terms are all of them.
+    for item in offline.recommend(["Electron", "Photon"], top_k=3).recommendations:
+        total = sum(value for _, value in item.term_contributions)
+        assert total == pytest.approx(item.signal_contributions["text"], abs=1e-3)
+        assert [term for term, _ in item.term_contributions][: len(item.shared_terms)] == item.shared_terms
+
+
+def test_each_recommendation_names_the_interest_behind_its_score(offline):
+    result = offline.recommend(["Dog", "Wolf", "Electron"], top_k=4, aggregation="interests")
+    for item in result.recommendations:
+        assert item.interest in (["Dog", "Wolf"], ["Electron"])
+        expected = np.mean([item.by_visited[title] for title in item.interest])
+        assert item.score == pytest.approx(expected, abs=1e-3)
+
+
 def test_the_model_survives_saving(model, tmp_path):
     path = tmp_path / "model.pkl"
     model.save(path)

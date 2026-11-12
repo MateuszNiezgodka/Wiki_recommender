@@ -12,6 +12,14 @@ Scoring, for a history V of m articles and a candidate c outside V:
 Both lie in [0, 1]. With the "interests" aggregation, V is first split into groups of related articles,
 score(c) is the formula above within the group c is closest to, and the list shares its slots between
 groups in proportion to their size.
+
+Every recommendation explains its score. With the default p = 1 the score is a mean over the interest I
+the candidate is closest to, and it splits exactly into
+
+    score(c) = sum over terms t of w_text * u_t * c_t + w_links * mean cos_links + w_emb * mean cos_emb
+
+where u is the mean text vector of I and the means run over v in I. `term_contributions` holds the
+largest terms of the first sum and `signal_contributions` the three signal totals.
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ from wiki_recommender.recommender.scoring import interest_ranking, power_mean, t
 log = logging.getLogger(__name__)
 
 _TOP_TERMS = 6
+_TOP_CONTRIBUTIONS = 12
 
 
 @dataclass
@@ -71,6 +80,9 @@ class Recommendation:
     by_signal: dict[str, float]  # mean similarity over visited articles, per signal (unweighted)
     shared_terms: list[str]  # terms that contribute most to the text similarity
     topic: str
+    interest: list[str] = field(default_factory=list)  # visited articles the score is computed from
+    signal_contributions: dict[str, float] = field(default_factory=dict)  # weighted, sum to the score
+    term_contributions: list[tuple[str, float]] = field(default_factory=list)  # largest parts of the text one
 
 
 @dataclass
@@ -190,12 +202,17 @@ class Recommender:
         else:
             scores = power_mean(similarity, settings.power)
             chosen = top_indices(scores, top_k, excluded)
+            groups = [list(range(len(visited)))]
 
-        centroid = np.asarray(queries.text.mean(axis=0)).ravel()
-        recommendations = [
-            self._explain(rank, int(c), float(scores[c]), visited, similarity, per_signal, centroid)
-            for rank, c in enumerate(chosen, start=1)
-        ]
+        # The interest each candidate is scored by, and the mean text vector of every interest.
+        per_group = np.stack([power_mean(similarity[group], settings.power) for group in groups])
+        closest = per_group.argmax(axis=0)
+        centroids = [np.asarray(queries.text[group].mean(axis=0)).ravel() for group in groups]
+        recommendations = []
+        for rank, c in enumerate(chosen, start=1):
+            group = int(closest[c])
+            explanation = _Explanation(groups[group], centroids[group], similarity, per_signal, settings)
+            recommendations.append(self._explain(rank, int(c), float(scores[c]), visited, explanation))
         return RecommendationResult(visited, unresolved, recommendations, interests)
 
     def _explain(
@@ -204,14 +221,21 @@ class Recommender:
         candidate: int,
         score: float,
         visited: list[VisitedArticle],
-        similarity: np.ndarray,
-        per_signal: dict[str, np.ndarray],
-        centroid: np.ndarray,
+        explanation: _Explanation,
     ) -> Recommendation:
+        similarity, per_signal, group = explanation.similarity, explanation.per_signal, explanation.group
         row = self.model.vectors.text[candidate]
-        contributions = row.data * centroid[row.indices]
-        order = np.argsort(-contributions)[:_TOP_TERMS]
-        terms = [_display_term(self._feature_names[row.indices[i]]) for i in order if contributions[i] > 0]
+        contributions = row.data * explanation.centroid[row.indices]
+        order = [i for i in np.argsort(-contributions)[:_TOP_CONTRIBUTIONS] if contributions[i] > 0]
+        terms = [_display_term(self._feature_names[row.indices[i]]) for i in order]
+
+        signals = {
+            s: explanation.settings.weight(s) * float(per_signal[s][group, candidate].mean()) for s in SIGNALS
+        }
+        # The split is exact for the mean (p = 1). Other powers are shown in the same proportions.
+        total = sum(signals.values())
+        scale = score / total if total > 0 else 0.0
+        text_weight = explanation.settings.weight("text") * scale
         index = self.model.index
         return Recommendation(
             rank=rank,
@@ -220,9 +244,26 @@ class Recommender:
             score=round(score, 4),
             by_visited={v.title: round(float(similarity[i, candidate]), 4) for i, v in enumerate(visited)},
             by_signal={s: round(float(per_signal[s][:, candidate].mean()), 4) for s in SIGNALS},
-            shared_terms=terms,
+            shared_terms=terms[:_TOP_TERMS],
             topic=index.topics[candidate],
+            interest=[visited[i].title for i in group],
+            signal_contributions={s: round(value * scale, 5) for s, value in signals.items()},
+            term_contributions=[
+                (term, round(float(text_weight * contributions[i]), 5))
+                for term, i in zip(terms, order, strict=True)
+            ],
         )
+
+
+@dataclass
+class _Explanation:
+    """What `_explain` needs about the interest a candidate is scored by."""
+
+    group: list[int]  # history rows of the interest
+    centroid: np.ndarray  # their mean text vector
+    similarity: np.ndarray
+    per_signal: dict[str, np.ndarray]
+    settings: Settings
 
 
 @lru_cache(maxsize=1)
