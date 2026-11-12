@@ -21,8 +21,12 @@ from wiki_recommender.preprocessing.pipeline import (
     TokenizedArticle,
     article_fields,
     build_record,
+    load_repairs,
+    process_article,
     process_corpus,
+    save_repairs,
 )
+from wiki_recommender.preprocessing.tokens import LemmaRepairs, load_nlp
 from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectorizer, load_parts
 
 
@@ -125,6 +129,23 @@ def test_whole_stage_leaves_no_temporary_file_and_writes_stats(processed):
     assert json.loads(config.stats_path.read_text(encoding="utf-8"))["vocabulary"] == stats["vocabulary"]
     assert stats["articles"] == 2
     assert stats["vocabulary"]["raw_casefolded"] > stats["vocabulary"]["lemmas"] > 0
+
+
+def test_a_single_article_is_processed_like_the_corpus(processed):
+    config, _ = processed
+    repairs = load_repairs(config.repairs_path)
+    corpus_row = pq.read_table(config.output).to_pylist()[0]
+    alone = process_article(load_nlp(), RAW[0], repairs)
+    assert alone["tokens_lemmatized"] == corpus_row["tokens_lemmatized"]
+    assert alone["processed_text"] == corpus_row["processed_text"]
+
+
+def test_repairs_round_trip_and_tolerate_a_missing_file(tmp_path):
+    path = tmp_path / "x.repairs.json"
+    save_repairs(LemmaRepairs(plurals={"cryptocurrencies": "cryptocurrency"}, names={"dogs": "dog"}), path)
+    loaded = load_repairs(path)
+    assert loaded.apply("~cryptocurrencies dogs") == "cryptocurrency dog"
+    assert len(load_repairs(tmp_path / "missing.json")) == 0
 
 
 def test_stored_parts_turn_into_vectors(processed):
