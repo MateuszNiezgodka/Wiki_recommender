@@ -2,7 +2,7 @@
 
 Content-based recommender system for English Wikipedia / Fandom wiki articles built for the **Information Retrieval (`[IR]`)** course at Poznan University of Technology.
 
-Given a collection of previously visited articles (as **titles** or **URLs**), the system recommends the most relevant unseen articles from a local corpus of 8,800 preprocessed Wikipedia pages, each with a score in [0, 1] and a graphical explanation of that score.
+Given a collection of previously visited articles (as **titles** or **URLs**), the system recommends the most relevant unseen articles from a local corpus of 2,200 preprocessed Wikipedia pages, each with a score in [0, 1] and a graphical explanation of that score.
 
 **Report:** [`reports/final_report.pdf`](./reports/final_report.pdf), also as an executed notebook, [`notebooks/final_report.ipynb`](./notebooks/final_report.ipynb).
 
@@ -10,7 +10,7 @@ Given a collection of previously visited articles (as **titles** or **URLs**), t
 
 ```bash
 uv sync                                          # Python >= 3.14 and uv, see Setup below
-uv run python -m wiki_recommender.download       # the built corpus and model (~400 MB) into data/
+uv run python -m wiki_recommender.download       # the built corpus and model (~100 MB) into data/
 uv run python -m wiki_recommender.recommender "Dog" "https://en.wikipedia.org/wiki/Cat" -k 10
 ```
 
@@ -74,13 +74,13 @@ pip install -e .
 
 ### Data
 
-`data/` is not in Git. `python -m wiki_recommender.download` fetches what Stages 3-5 read (processed corpus, fitted model, cached embeddings, statistics and measurements) from the repository's `data-v1` release and unpacks it. `--pack` builds that archive from a local `data/`, to attach it to a release. Without the archive, rebuild everything with the commands of Stages 1-3, about 2.5 hours in total.
+`data/` is not in Git. `python -m wiki_recommender.download` fetches what Stages 3-5 read (processed corpus, fitted model, cached embeddings, statistics and measurements) from the repository's `data-v1` release and unpacks it. `--pack` builds that archive from a local `data/`, to attach it to a release. Without the archive, rebuild everything with the commands of Stages 1-3, about 25 minutes in total.
 
 ## Stage 1: Building the Corpus
 
 ```bash
-uv run python -m wiki_recommender.crawler                  # 8,800 articles, about 1 h 45 min
-uv run python -m wiki_recommender.crawler --per-topic 100  # a smaller corpus (the page-view step alone takes ~25 min)
+uv run python -m wiki_recommender.crawler                  # 2,200 articles, about 18 min
+uv run python -m wiki_recommender.crawler --per-topic 100  # a smaller corpus
 uv run pytest                                              # offline tests, no network needed
 ```
 
@@ -91,7 +91,6 @@ An interrupted crawl continues where it stopped when you rerun the command. `--n
 | `articles_raw.parquet` | The corpus, consumed by Stage 2 |
 | `articles_raw.stats.json` | Corpus composition, filter counts and the settings used |
 | `articles_raw.checkpoint.jsonl` | Every crawl decision, used for resuming |
-| `articles_raw.pageviews.json` | Cached view counts, so a resumed crawl keeps its priorities |
 
 ### How articles are chosen
 
@@ -99,7 +98,7 @@ Articles come from English Wikipedia's [Vital articles](https://en.wikipedia.org
 
 1. **Core first:** articles of levels 1-3 (such as *World War II* or *Dog*) are always taken.
 2. **Then a 60/40 mix** of level 4 articles and narrower level 5 ones, which add niche subjects and related neighbours.
-3. **Round-robin over subsections:** every subsection contributes one article before any contributes a second, most-read first (60 days of page views). Popular subjects are favoured without being able to crowd out quieter ones.
+3. **Round-robin over subsections:** every subsection contributes one article before any contributes a second, shuffled with a fixed seed so no subsection or alphabetical prefix can crowd out the others.
 
 Pages are rejected if they are disambiguation pages, redirects to an article already collected, link collections (`List of ...`, `Outline of ...`), outside the main namespace, or shorter than 100 words.
 
@@ -112,8 +111,8 @@ The crawler identifies itself with a descriptive `User-Agent`, spaces requests a
 ## Stage 2: Preprocessing
 
 ```bash
-uv run python -m wiki_recommender.preprocessing            # about 25 min with 4 workers, peaks near 5 GB of RAM
-uv run python -m wiki_recommender.preprocessing.evaluate   # compares document representations, a few minutes
+uv run python -m wiki_recommender.preprocessing            # about 4 min with 4 workers, peaks near 5 GB of RAM
+uv run python -m wiki_recommender.preprocessing.evaluate   # compares document representations, ~15 s
 ```
 
 Lower `--workers` if memory is short. Run either command with `--help` for every option.
@@ -145,19 +144,19 @@ Lemmas are the canonical representation (`processed_text`). They are real words,
 
 ### Choosing the representation
 
-`evaluate` compares document representations by how often an article's 10 nearest neighbours are related to it by signals that do not come from its text: the same Vital articles subsection, and a shared category from a held-out half that no representation sees. The score below is their mean on 4,407 test articles; the weights in `vectors.py` were chosen on the other half.
+`evaluate` compares document representations by how often an article's 10 nearest neighbours are related to it by signals that do not come from its text: the same Vital articles subsection, and a shared category from a held-out half that no representation sees. The score below is their mean on 1,093 test articles; the weights in `vectors.py` were chosen on the other half.
 
 | Representation | Score | Same subsection | Shared held-out category |
 | :--- | ---: | ---: | ---: |
-| Definition only | 0.222 | 0.266 | 0.179 |
-| Lead only | 0.259 | 0.313 | 0.205 |
-| Full text | 0.288 | 0.342 | 0.234 |
-| Full text, stemmed | 0.283 | 0.335 | 0.231 |
-| Full text + 0.5 × definition | 0.296 | 0.358 | 0.234 |
-| **Final** (+ 0.25 × categories) | **0.313** | **0.374** | **0.252** |
-| Final, stemmed | 0.309 | 0.371 | 0.247 |
+| Definition only | 0.226 | 0.306 | 0.147 |
+| Lead only | 0.264 | 0.367 | 0.161 |
+| Full text | 0.294 | 0.407 | 0.180 |
+| Full text, stemmed | 0.287 | 0.399 | 0.176 |
+| Full text + 0.5 × definition | 0.309 | 0.437 | 0.181 |
+| **Final** (+ 0.25 × categories) | **0.323** | **0.450** | **0.197** |
+| Final, stemmed | 0.317 | 0.440 | 0.194 |
 
-Paired bootstrap intervals (95 %) confirm both choices: the final representation beats full text by +0.025 [+0.022, +0.029], and lemmas beat stems by +0.004 [+0.003, +0.006]. Lemmas win by a small margin, but consistently, and with readable terms.
+Paired bootstrap intervals (95 %) confirm both choices: the final representation beats full text by +0.030 [+0.019, +0.041], and lemmas beat stems by +0.006 [+0.001, +0.011]. Lemmas win by a small margin, but consistently, and with readable terms.
 
 ### Document parts
 
@@ -168,7 +167,7 @@ Each article also keeps its **definition** (the first full lead paragraph, which
 ```bash
 uv run python -m wiki_recommender.recommender "Dog" "https://en.wikipedia.org/wiki/Cat" -k 10
 uv run python -m wiki_recommender.recommender --build                 # (re)build data/processed/recommender.pkl
-uv run python -m wiki_recommender.recommender.evaluate                # measurements behind the settings, ~15 min
+uv run python -m wiki_recommender.recommender.evaluate                # measurements behind the settings, ~30 s
 ```
 
 ```python
@@ -179,7 +178,7 @@ print(result)                                   # table of title, score and shar
 result.recommendations[0].url                   # each item also has by_visited, by_signal and shared_terms
 ```
 
-The first query builds the model if `data/processed/recommender.pkl` is missing: about 30 s with cached embeddings, or roughly 20 min on CPU to embed the corpus first. A query then takes a few seconds. `--offline` never contacts Wikipedia, and `--json` prints the full result.
+The first query builds the model if `data/processed/recommender.pkl` is missing: about 10 s with cached embeddings, or roughly 1.5 min on CPU to embed the corpus first. A query then takes a few seconds. `--offline` never contacts Wikipedia, and `--json` prints the full result.
 
 **Input.** Titles and URLs can be mixed. Titles match regardless of case, accents, underscores and punctuation (`sao paulo` finds *São Paulo*). URLs may be desktop or mobile, percent-encoded, or carry a `#section`. An article outside the corpus is fetched from Wikipedia, processed with the Stage 1 extraction and Stage 2 preprocessing, and used like any visited article. A redirect such as *USA* resolves to the corpus article *United States*. Inputs that cannot be used are reported with the reason and close titles (`Elektron` → *Electron*; `Mercury` → *Mercury (planet)*, *Mercury (element)*).
 
@@ -187,15 +186,14 @@ The first query builds the model if `data/processed/recommender.pkl` is missing:
 
 ### Scoring
 
-Three signals compare two articles, each a cosine similarity in [0, 1]:
+Two signals compare two articles, each a cosine similarity in [0, 1]:
 
 | Signal | Representation | Weight |
 | :--- | :--- | ---: |
-| Text | Stage 2 TF-IDF: lemmas + 0.5 × definition, + 0.25 × categories | 0.55 |
-| Links | TF-IDF over the pages an article links to, plus its own title, so shared and direct links both count | 0.05 |
+| Text | Stage 2 TF-IDF: lemmas + 0.5 × definition, + 0.25 × categories | 0.60 |
 | Embedding | `BAAI/bge-small-en-v1.5` sentence embedding of the title and the first 150 words | 0.40 |
 
-$$s(v, c) = 0.55\,\cos_{\text{text}}(v, c) + 0.05\,\cos_{\text{links}}(v, c) + 0.40\,\max\big(0, \cos_{\text{emb}}(v, c)\big)$$
+$$s(v, c) = 0.60\,\cos_{\text{text}}(v, c) + 0.40\,\max\big(0, \cos_{\text{emb}}(v, c)\big)$$
 
 A history $V$ is first split into **interests**: visited articles are clustered with average linkage, and two stay together while their mean similarity is at least 0.3. For a candidate $c \notin V$ and interest $I$:
 
@@ -205,30 +203,28 @@ The list's slots are shared between interests in proportion to their size, each 
 
 ### Choosing the settings
 
-`recommender.evaluate` compares only the embedding variants already cached in `data/processed/embeddings/` (a fresh `--build` caches bge-small) and skips the others with a warning. It uses the relevance signals of Stage 2: the same Vital articles subsection, and a shared category from a held-out half that no signal sees. Weights and aggregation were chosen on half of the articles; the numbers below come from the other half (4,407 articles).
+`recommender.evaluate` compares only the embedding variants already cached in `data/processed/embeddings/` (a fresh `--build` caches bge-small) and skips the others with a warning. It uses the relevance signals of Stage 2: the same Vital articles subsection, and a shared category from a held-out half that no signal sees. Weights and aggregation were chosen on half of the articles; the numbers below come from the other half (1,093 articles).
 
 **Single articles** (share of the 10 nearest neighbours that are related):
 
 | Signals | Score | Same subsection | Shared held-out category |
 | :--- | ---: | ---: | ---: |
-| Links only | 0.252 | 0.305 | 0.200 |
-| MiniLM-L6 embedding only | 0.277 | 0.335 | 0.218 |
-| bge-small embedding only | 0.289 | 0.345 | 0.232 |
-| Text only (Stage 2) | 0.313 | 0.374 | 0.252 |
-| **Text + links + bge-small** | **0.332** | **0.400** | **0.264** |
+| bge-small embedding only | 0.302 | 0.423 | 0.180 |
+| Text only (Stage 2) | 0.323 | 0.450 | 0.197 |
+| **Text + bge-small** | **0.338** | **0.471** | **0.205** |
 
-Text and embeddings complement each other: together they beat text alone by +0.016 [+0.013, +0.018] (95 % paired bootstrap). Links add almost nothing on top, as the text already contains the link anchors, so they keep a small weight. Embedding up to 6 passages per article instead of 1 did not help once combined with text. Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
+Text and embeddings complement each other: together they beat text alone by +0.011 [+0.005, +0.016] and the embedding alone by +0.029 [+0.022, +0.036] (95 % paired bootstrap). Embedding up to 6 passages per article instead of 1 did not help once combined with text. Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
 
 **Histories of visited articles** (two interests: 3 + 2 articles from subsections of different topics; *coverage* is the share of interests that get at least one recommendation):
 
 | Aggregation | 1 interest, 3 articles | 1 interest, 5 articles | 2 interests | Coverage, 2 interests |
 | :--- | ---: | ---: | ---: | ---: |
-| Mean (centroid) | 0.406 | 0.431 | 0.502 | 0.68 |
-| Power mean, p = 4 | 0.395 | 0.424 | 0.548 | 0.77 |
-| Maximum | 0.367 | 0.372 | 0.532 | 0.79 |
-| **Interests (threshold 0.3)** | **0.403** | **0.428** | **0.609** | **0.93** |
+| Mean (centroid) | 0.349 | 0.334 | 0.459 | 0.79 |
+| Power mean, p = 4 | 0.343 | 0.336 | 0.510 | 0.86 |
+| Maximum | 0.323 | 0.319 | 0.518 | 0.87 |
+| **Interests (threshold 0.3)** | **0.348** | **0.337** | **0.546** | **0.98** |
 
-Splitting a history into interests costs almost nothing when it has one topic (−0.003) and gains +0.107 [+0.094, +0.120] over the mean when it has two, because the mean favours articles that sit between both topics and match neither well.
+Splitting a history into interests costs almost nothing when it has one topic (−0.001) and gains +0.088 [+0.078, +0.098] over the mean when it has two, because the mean favours articles that sit between both topics and match neither well.
 
 | Output in `data/processed/` | Contents |
 | :--- | :--- |
@@ -240,9 +236,9 @@ Splitting a history into interests costs almost nothing when it has one topic (�
 
 Each recommendation also carries the parts its score is made of. With the default mean (p = 1) they add up exactly:
 
-$$\text{score}(c) = \sum_{\text{terms } w} 0.55\, u_w\, c_w + 0.05\,\overline{\cos}_{\text{links}} + 0.40\,\overline{\cos}_{\text{emb}} = \frac{1}{|I|}\sum_{v \in I} s(v, c)$$
+$$\text{score}(c) = \sum_{\text{terms } w} 0.60\, u_w\, c_w + 0.40\,\overline{\cos}_{\text{emb}} = \frac{1}{|I|}\sum_{v \in I} s(v, c)$$
 
-where $u$ is the mean text vector of the interest $I$. `signal_contributions` holds the three signal parts, `term_contributions` the largest shared terms of the text part, and `interest` the visited articles the score is averaged over.
+where $u$ is the mean text vector of the interest $I$. `signal_contributions` holds the two signal parts, `term_contributions` the largest shared terms of the text part, and `interest` the visited articles the score is averaged over.
 
 ## Stage 4: Giving a List of Articles
 

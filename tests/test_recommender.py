@@ -7,7 +7,6 @@ from wiki_recommender.recommender import model as model_module
 from wiki_recommender.recommender.engine import Recommender
 from wiki_recommender.recommender.evaluate import nearest, weight_grid
 from wiki_recommender.recommender.fallback import FetchedArticle, FetchFailed, fetch_unseen
-from wiki_recommender.recommender.links import LinkVectorizer, link_features
 from wiki_recommender.recommender.model import (
     ArticleIndex,
     ArticleVectors,
@@ -56,12 +55,8 @@ def _parts(rows) -> ArticleParts:
 @pytest.fixture(scope="module")
 def model() -> RecommenderModel:
     text_vectorizer = DocumentVectorizer()
-    link_vectorizer = LinkVectorizer()
     vectors = ArticleVectors(
         text=text_vectorizer.fit_transform(_parts(CORPUS)),
-        links=link_vectorizer.fit_transform(
-            [link_features(title, links) for title, _, _, links, _ in CORPUS]
-        ),
         embedding=np.stack([_topic_embedding(topic) for _, topic, *_ in CORPUS]),
     )
     titles = [title for title, *_ in CORPUS]
@@ -73,7 +68,7 @@ def model() -> RecommenderModel:
         sections=[topic for _, topic, *_ in CORPUS],
         summaries=[text for _, _, text, _, _ in CORPUS],
     )
-    return RecommenderModel(index, vectors, text_vectorizer, link_vectorizer, Settings())
+    return RecommenderModel(index, vectors, text_vectorizer, Settings())
 
 
 @pytest.fixture
@@ -151,10 +146,6 @@ def test_a_word_suggests_the_titles_it_begins_first():
     assert resolver.suggest("mercury")[:2] == ["Mercury (planet)", "Mercury (element)"]
 
 
-def test_link_features_hold_the_own_title_once():
-    assert link_features("dog", ["Wolf", "wolf", "Cat#Behaviour", ""]) == ["Cat", "Dog", "Wolf"]
-
-
 # --- Recommending ----------------------------------------------------------------------------------------
 
 
@@ -205,7 +196,7 @@ def test_two_interests_both_get_recommendations(offline):
 def test_explanations_name_shared_terms(offline):
     best = offline.recommend(["Electron"], top_k=1).recommendations[0]
     assert best.shared_terms
-    assert set(best.by_signal) == {"text", "links", "embedding"}
+    assert set(best.by_signal) == {"text", "embedding"}
 
 
 @pytest.mark.parametrize("history", [["Electron"], ["Electron", "Photon"], ["Dog", "Wolf", "Electron"]])

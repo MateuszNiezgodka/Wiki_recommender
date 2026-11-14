@@ -2,7 +2,7 @@
 
 With the default settings a score splits exactly into parts (see `recommender.engine`):
 
-    score(c) = sum over terms t of w_text * u_t * c_t  +  w_links * mean cos_links  +  w_emb * mean cos_emb
+    score(c) = sum over terms t of w_text * u_t * c_t  +  w_emb * mean cos_emb
              = (1 / |I|) * sum over v in I of s(v, c)
 
 The first line splits it by signal and term (`plot_score_waterfall`, `plot_signal_breakdown`), the second
@@ -59,13 +59,13 @@ def _end_label(ax: plt.Axes, y: float, x: float, text: str, offset: float) -> No
 
 def plot_score_waterfall(item: Recommendation, top_terms: int = 8, ax: plt.Axes | None = None) -> plt.Axes:
     """How one recommendation's score adds up: its strongest shared terms, the rest of the text signal,
-    then the link and embedding signals. Each bar starts where the previous one ended."""
+    then the embedding signal. Each bar starts where the previous one ended."""
     terms = item.term_contributions[:top_terms]
     text_total = item.signal_contributions.get("text", 0.0)
     rest = max(text_total - sum(value for _, value in terms), 0.0)
     steps = [(term, value, "text") for term, value in terms]
     steps.append(("other shared terms", rest, "text"))
-    steps += [(SIGNAL_LABELS[s], item.signal_contributions.get(s, 0.0), s) for s in ("links", "embedding")]
+    steps.append((SIGNAL_LABELS["embedding"], item.signal_contributions.get("embedding", 0.0), "embedding"))
 
     ax = _axes(ax, (7.5, 0.34 * (len(steps) + 1) + 1.2))
     start = 0.0
@@ -96,7 +96,7 @@ def plot_score_waterfall(item: Recommendation, top_terms: int = 8, ax: plt.Axes 
 
 
 def plot_signal_breakdown(result: RecommendationResult, ax: plt.Axes | None = None) -> plt.Axes:
-    """Every recommendation's score as a stack of its weighted text, link and embedding parts."""
+    """Every recommendation's score as a stack of its weighted text and embedding parts."""
     items = result.recommendations
     ax = _axes(ax, (8, 0.36 * len(items) + 1.4))
     left = np.zeros(len(items))

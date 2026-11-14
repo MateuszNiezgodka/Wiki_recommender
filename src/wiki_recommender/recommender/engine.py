@@ -6,7 +6,7 @@
 
 Scoring, for a history V of m articles and a candidate c outside V:
 
-    s(v, c) = w_text * cos_text(v, c) + w_links * cos_links(v, c) + w_emb * max(0, cos_emb(v, c))
+    s(v, c) = w_text * cos_text(v, c) + w_emb * max(0, cos_emb(v, c))
     score(c) = ( (1/m) * sum over v in V of s(v, c)^p )^(1/p)
 
 Both lie in [0, 1]. With the "interests" aggregation, V is first split into groups of related articles,
@@ -16,10 +16,10 @@ groups in proportion to their size.
 Every recommendation explains its score. With the default p = 1 the score is a mean over the interest I
 the candidate is closest to, and it splits exactly into
 
-    score(c) = sum over terms t of w_text * u_t * c_t + w_links * mean cos_links + w_emb * mean cos_emb
+    score(c) = sum over terms t of w_text * u_t * c_t + w_emb * mean cos_emb
 
-where u is the mean text vector of I and the means run over v in I. `term_contributions` holds the
-largest terms of the first sum and `signal_contributions` the three signal totals.
+where u is the mean text vector of I and the mean runs over v in I. `term_contributions` holds the
+largest terms of the first sum and `signal_contributions` the two signal totals.
 """
 
 from __future__ import annotations

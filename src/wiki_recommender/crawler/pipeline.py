@@ -22,7 +22,6 @@ from wiki_recommender.crawler.seeds import (
     ApiGetter,
     Candidate,
     discover_candidates,
-    fetch_pageviews,
     plan_crawl_order,
 )
 from wiki_recommender.crawler.titles import is_prose_article_title, title_to_url
@@ -60,7 +59,7 @@ class CrawlAborted(RuntimeError):
 @dataclass(frozen=True)
 class CrawlConfig:
     output: Path
-    per_topic: int = 800
+    per_topic: int = 200
     level4_share: float = 0.6
     min_words: int = 100
     workers: int = 3
@@ -70,10 +69,6 @@ class CrawlConfig:
     @property
     def checkpoint(self) -> Path:
         return self.output.with_suffix(".checkpoint.jsonl")
-
-    @property
-    def pageviews_path(self) -> Path:
-        return self.output.with_suffix(".pageviews.json")
 
     @property
     def stats_path(self) -> Path:
@@ -153,14 +148,27 @@ def _load_checkpoint(path: Path) -> _CrawlState:
     state = _CrawlState()
     if not path.exists():
         return state
-    with path.open(encoding="utf-8") as lines:
-        for line in lines:
+    valid_lines: list[bytes] = []
+    dirty = False
+    with path.open("rb") as lines:
+        for raw_line in lines:
             try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
+                if b"\x00" in raw_line:
+                    raise ValueError("null bytes in checkpoint line")
+                entry = json.loads(raw_line.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
                 log.warning("Ignoring a truncated checkpoint line, likely from an interrupted run")
+                dirty = True
                 continue
+            if not raw_line.endswith(b"\n"):
+                raw_line += b"\n"
+                dirty = True
+            valid_lines.append(raw_line)
             state.apply(entry["candidate"], entry["status"], entry.get("record"))
+    if dirty:
+        temporary = path.with_suffix(".checkpoint.tmp")
+        temporary.write_bytes(b"".join(valid_lines))
+        temporary.replace(path)
     return state
 
 
@@ -189,26 +197,15 @@ class _Scheduler:
         self._in_flight[candidate.topic] -= 1
 
 
-def _load_pageviews(client: ApiGetter, candidates: list[Candidate], path: Path) -> dict[str, int]:
-    """Read view counts from the cache, so that a resumed crawl keeps the same priorities."""
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    views = fetch_pageviews(client, [candidate.title for candidate in candidates])
-    path.write_text(json.dumps(views, ensure_ascii=False), encoding="utf-8")
-    return views
-
-
 def crawl(client: ApiGetter, config: CrawlConfig) -> list[dict[str, Any]]:
     """Run the crawl to completion and return the accepted article records."""
     config.output.parent.mkdir(parents=True, exist_ok=True)
     if not config.resume:
         config.checkpoint.unlink(missing_ok=True)
-        config.pageviews_path.unlink(missing_ok=True)
 
     candidates = discover_candidates(client)
     log.info("Discovered %d candidate articles", len(candidates))
-    views = _load_pageviews(client, candidates, config.pageviews_path)
-    queues = plan_crawl_order(candidates, views=views, level4_share=config.level4_share, seed=config.seed)
+    queues = plan_crawl_order(candidates, level4_share=config.level4_share, seed=config.seed)
     state = _load_checkpoint(config.checkpoint)
     if state.records:
         log.info("Resuming with %d articles from %s", len(state.records), config.checkpoint)

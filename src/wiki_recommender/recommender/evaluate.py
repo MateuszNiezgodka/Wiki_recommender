@@ -37,8 +37,7 @@ import scipy.sparse as sp
 
 from wiki_recommender.preprocessing.evaluate import Labels, build_labels, is_hidden_category, is_test_article
 from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectorizer
-from wiki_recommender.recommender.links import LinkVectorizer, link_features
-from wiki_recommender.recommender.model import PROCESSED_PATH, corpus_passage_vectors
+from wiki_recommender.recommender.model import PROCESSED_PATH, Settings, corpus_passage_vectors
 from wiki_recommender.recommender.scoring import interest_ranking, power_mean, top_indices
 
 log = logging.getLogger(__name__)
@@ -177,11 +176,6 @@ def load_eval_data(path: Path, variants: dict[str, tuple[str, int]]) -> EvalData
     log.info("Building signals")
     similarities = {
         "text": dense(DocumentVectorizer().fit_transform(parts)),
-        "links": dense(
-            LinkVectorizer().fit_transform(
-                [link_features(t, o) for t, o in zip(titles, outlinks, strict=True)]
-            )
-        ),
     }
     article_ids = pq.read_table(path, columns=["article_id"])["article_id"].to_pylist()
     for name, (model, passages) in variants.items():
@@ -215,9 +209,9 @@ def weight_grid(signals: list[str], step: float = _WEIGHT_STEP) -> list[dict[str
     return grid
 
 
-def tune_weights(data: EvalData, embedding: str | None) -> tuple[dict[str, float], float]:
-    """Best weights on the tuning half for text, links and (optionally) one embedding variant."""
-    signals = ["text", "links"] + ([embedding] if embedding else [])
+def tune_weights(data: EvalData, embedding: str) -> tuple[dict[str, float], float]:
+    """Best weights on the tuning half for text and one embedding variant."""
+    signals = ["text", embedding]
     rows = np.flatnonzero(~data.test)
     best, best_score = {}, -1.0
     for weights in weight_grid(signals):
@@ -337,17 +331,23 @@ def evaluate(path: Path) -> dict[str, Any]:
     for name in data.similarities:
         single[name] = neighbour_scores(data.labels, nearest(data.similarities[name], every, len(every)))
         log.info("Scored %s alone", name)
-    embeddings = [name for name in data.similarities if name not in ("text", "links")]
+    embeddings = [name for name in data.similarities if name != "text"]
     best_embedding = max(
         embeddings, key=lambda name: summarize(single[name], tuning)["primary"], default=None
     )
 
-    tuned = {}
-    for label, embedding in [("text + links", None)] + [(f"text + links + {e}", e) for e in embeddings]:
-        weights, score = tune_weights(data, embedding)
+    settings = Settings()
+    tuned = {"text": {"text": 1.0}}
+    for label, embedding in [(f"text + {e}", e) for e in embeddings]:
+        weights = {"text": settings.weight("text"), embedding: settings.weight("embedding")}
         tuned[label] = weights
         single[label] = neighbour_scores(data.labels, nearest(combined(data, weights), every, len(every)))
-        log.info("Tuned %s: %s (tuning primary %.4f)", label, weights, score)
+        log.info(
+            "Scored %s: %s (tuning primary %.4f)",
+            label,
+            weights,
+            summarize(single[label], tuning)["primary"],
+        )
     final_label = max(tuned, key=lambda label: summarize(single[label], tuning)["primary"])
     final_weights = tuned[final_label]
 
@@ -365,7 +365,7 @@ def evaluate(path: Path) -> dict[str, Any]:
         f"{final_label} vs {other}": bootstrap(
             primary_per_query(single[final_label])[test], primary_per_query(single[other])[test]
         )
-        for other in ["text", "text + links"] + ([best_embedding] if best_embedding else [])
+        for other in ["text"] + ([best_embedding] if best_embedding else [])
         if other != final_label
     }
 
@@ -393,7 +393,7 @@ def evaluate(path: Path) -> dict[str, Any]:
         histories_report[shape_name] = shape_report
         log.info("Scored histories: %s", shape_name)
 
-    best_aggregation = max(tuning_totals, key=lambda name: np.mean(tuning_totals[name]))
+    best_aggregation = f"interests t={settings.interest_threshold}, p={settings.power}"
     report["histories"] = histories_report
     report["final_aggregation"] = {"label": best_aggregation, **AGGREGATIONS[best_aggregation]}
     report["history_comparisons_on_test"] = {

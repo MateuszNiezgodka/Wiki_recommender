@@ -334,7 +334,7 @@ def similarity_sample(model: RecommenderModel, size: int = 2000, seed: int = 0) 
 
 def plot_similarity_distributions(sample: SimilaritySample) -> plt.Figure:
     """Histogram of pairwise similarity for each signal and for the combined score."""
-    fig, axes = _row_axes(4, (15, 3.2), sharey=False)
+    fig, axes = _row_axes(len(SIGNALS) + 1, (12, 3.2), sharey=False)
     panels = [(SIGNAL_LABELS[s], sample.per_signal[s], SIGNAL_COLORS[s]) for s in SIGNALS]
     panels.append(("Combined s(a, b)", sample.combined, INK_SECONDARY))
     for ax, (label, matrix, color) in zip(axes, panels, strict=True):

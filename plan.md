@@ -129,7 +129,7 @@ Every stage below separates **Obligatory Tasks** (required for full completion o
   - **BM25** lexical ranking (`rank-bm25`) — *not done*
   - **Latent Semantic Analysis (LSA / `TruncatedSVD`)** on TF-IDF — *not done; dense embeddings cover semantic similarity*
   - **Dense semantic embeddings** (`sentence-transformers`, e.g., `all-MiniLM-L6-v2`) — *done: MiniLM-L6 and bge-small compared, bge-small used*
-  - **Hybrid scoring** combining text cosine similarity + wiki category/outlink Jaccard similarity — *done: text + outlinks + embeddings, weights tuned*
+  - **Hybrid scoring** combining text cosine similarity + dense embeddings — *done: text + embeddings, weights tuned*
 - [ ] Diversity re-ranking (e.g., **Maximal Marginal Relevance — MMR**) so top recommendations aren't near-duplicates. *Interest clustering covers multi-topic histories instead.*
 
 ---

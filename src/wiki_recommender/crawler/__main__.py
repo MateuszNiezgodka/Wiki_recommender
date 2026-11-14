@@ -22,7 +22,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output", type=Path, default=Path("data/raw/articles_raw.parquet"), help="output file"
     )
     parser.add_argument(
-        "--per-topic", type=int, default=800, help="articles to collect from each of the 11 topics"
+        "--per-topic", type=int, default=200, help="articles to collect from each of the 11 topics"
     )
     parser.add_argument(
         "--level4-share",

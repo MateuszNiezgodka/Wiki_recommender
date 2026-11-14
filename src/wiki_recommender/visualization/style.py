@@ -27,8 +27,8 @@ CONTEXT = "#d6d5ce"  # gray for marks that are background, not the subject
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 OTHER = "#a8a7a0"  # everything past the eighth slot folds into "other"
 
-SIGNAL_COLORS = {"text": SERIES[0], "links": SERIES[1], "embedding": SERIES[2]}
-SIGNAL_LABELS = {"text": "Text (TF-IDF)", "links": "Links", "embedding": "Embedding"}
+SIGNAL_COLORS = {"text": SERIES[0], "embedding": SERIES[1]}
+SIGNAL_LABELS = {"text": "Text (TF-IDF)", "embedding": "Embedding"}
 
 BLUES = LinearSegmentedColormap.from_list(
     "blues",

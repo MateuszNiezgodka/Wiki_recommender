@@ -46,7 +46,7 @@ def test_visited_breakdown_stacks_add_up_to_each_score(mixed):
 
 def test_signal_breakdown_has_one_stack_per_recommendation(mixed):
     ax = breakdown.plot_signal_breakdown(mixed)
-    assert len(ax.patches) == 3 * len(mixed.recommendations)
+    assert len(ax.patches) == 2 * len(mixed.recommendations)
 
 
 def test_heatmap_outlines_the_interest_of_each_recommendation(mixed):
@@ -121,7 +121,7 @@ def test_evaluation_charts():
     representation = {"test_articles": 10, "test": {"final": {"primary": 0.3}, "full text": {"primary": 0.2}}}
     recommender = {
         "final_signals": {"label": "text"},
-        "single_article": {"text": _score(0.3), "links": _score(0.2)},
+        "single_article": {"text": _score(0.3), "embedding": _score(0.2)},
         "final_aggregation": {"label": "interests t=0.3, p=1.0", "interest_threshold": 0.3},
         "histories": {
             history: {

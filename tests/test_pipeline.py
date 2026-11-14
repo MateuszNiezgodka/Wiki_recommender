@@ -18,19 +18,12 @@ DEFAULT_LISTS = {
 class FakeWiki:
     """Stands in for the API. Tune redirects to Song; every page has a stable id."""
 
-    def __init__(self, fail=(), lists=None, views=None):
-        self.views = views or {}
-        self.pageview_requests = 0
+    def __init__(self, fail=(), lists=None):
         self.fail = set(fail)
         self.lists = DEFAULT_LISTS if lists is None else lists
         self.article_requests = []
 
     def get(self, **params):
-        if params.get("prop") == "pageviews":
-            self.pageview_requests += 1
-            titles = params["titles"].split("|")
-            pages = [{"title": t, "pageviews": {"d1": self.views.get(t, 0)}} for t in titles]
-            return {"query": {"pages": pages}}
         if params["action"] == "query":
             prefix = params["apprefix"]
             pages = [{"title": title} for title in self.lists if f":{prefix}" in title]
@@ -112,29 +105,18 @@ def test_resume_does_not_refetch_finished_articles(config):
 
 
 def test_resume_tolerates_a_truncated_checkpoint(config):
-    crawl(FakeWiki(), config)
+    crawl(FakeWiki(fail=["Rome"]), config)
     with config.checkpoint.open("a", encoding="utf-8") as checkpoint:
-        checkpoint.write('{"candidate": "Half wri')
+        checkpoint.write('\x00\x00{"candidate": "Half wri')
     assert len(crawl(FakeWiki(), config)) == 5
+    second_resume = FakeWiki()
+    assert len(crawl(second_resume, config)) == 5
+    assert second_resume.article_requests == []
 
 
 def test_failed_requests_are_retried_on_the_next_run(config):
     assert "Rome" not in {r["title"] for r in crawl(FakeWiki(fail=["Rome"]), config)}
     assert "Rome" in {r["title"] for r in crawl(FakeWiki(), config)}
-
-
-def test_most_read_articles_win_when_the_quota_is_tight(tmp_path):
-    lists = {HISTORY_LIST: "\n".join(f"# [[Page {i}]]" for i in range(10))}
-    wiki = FakeWiki(lists=lists, views={"Page 7": 900, "Page 2": 500})
-    records = crawl(wiki, CrawlConfig(output=tmp_path / "out.parquet", per_topic=2, workers=1))
-    assert {record["title"] for record in records} == {"Page 7", "Page 2"}
-
-
-def test_resume_reuses_cached_pageviews(config):
-    crawl(FakeWiki(), config)
-    second_run = FakeWiki()
-    crawl(second_run, config)
-    assert second_run.pageview_requests == 0
 
 
 def test_no_resume_starts_over(config):

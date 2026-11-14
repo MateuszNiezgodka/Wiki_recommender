@@ -7,11 +7,10 @@ on link-graph crawling, which tends to drift towards whatever the seed pages lin
 
 from __future__ import annotations
 
-import logging
 import random
 import re
 from collections import defaultdict
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Any, Protocol
@@ -21,10 +20,6 @@ from wiki_recommender.crawler.titles import is_prose_article_title, normalize_ti
 LIST_ROOT = "Vital articles/Level {level}"
 LIST_LEVELS = (4, 5)
 CORE_MAX_LEVEL = 3
-PAGEVIEW_DAYS = 60
-PAGEVIEW_BATCH = 50
-
-log = logging.getLogger(__name__)
 
 _NON_TOPIC_SUBPAGES = {"Article alerts", "Removed", "Nav bar"}
 _HEADING = re.compile(r"^(={2,6})\s*(.+?)\s*\1\s*$")
@@ -104,43 +99,12 @@ def merge_candidates(candidates: Iterable[Candidate]) -> list[Candidate]:
     return list(best.values())
 
 
-def fetch_pageviews(client: ApiGetter, titles: Sequence[str], *, days: int = PAGEVIEW_DAYS) -> dict[str, int]:
-    """Return each title's total views over the last ``days`` days, in batches of 50."""
-    views: dict[str, int] = {}
-    for start in range(0, len(titles), PAGEVIEW_BATCH):
-        params: dict[str, Any] = {
-            "action": "query",
-            "prop": "pageviews",
-            "pvipdays": days,
-            "titles": "|".join(titles[start : start + PAGEVIEW_BATCH]),
-        }
-        while True:
-            response = client.get(**params)
-            for page in response["query"]["pages"]:
-                daily = page.get("pageviews", {}).values()
-                views[page["title"]] = views.get(page["title"], 0) + sum(v or 0 for v in daily)
-            if "continue" not in response:
-                break
-            params |= response["continue"]
-        if start % (PAGEVIEW_BATCH * 200) == 0:
-            log.info("Pageviews: %d of %d titles", start, len(titles))
-    return views
-
-
-def _round_robin_by_section(
-    candidates: Sequence[Candidate], rng: random.Random, views: Mapping[str, int]
-) -> list[Candidate]:
+def _round_robin_by_section(candidates: Sequence[Candidate], rng: random.Random) -> list[Candidate]:
     """Order candidates so that every section contributes before any contributes twice.
 
-    Within a section the most-read articles come first, and each round runs from the most-read
-    article down, so a cut-off keeps what readers are likeliest to look for without letting any
-    subject crowd out the others. The shuffle settles ties: lists run alphabetically or by era,
-    and without view counts an unshuffled prefix would be biased towards their start.
+    Lists run alphabetically or by era, so sections and the articles within each section are
+    shuffled with a fixed seed to avoid biasing a cut-off towards their start.
     """
-
-    def popularity(candidate: Candidate) -> int:
-        return -views.get(candidate.title, 0)
-
     by_section: dict[str, list[Candidate]] = defaultdict(list)
     for candidate in sorted(candidates, key=lambda c: (c.section, c.title)):
         by_section[candidate.section].append(candidate)
@@ -148,11 +112,7 @@ def _round_robin_by_section(
     rng.shuffle(groups)
     for group in groups:
         rng.shuffle(group)
-        group.sort(key=popularity)
-    ordered: list[Candidate] = []
-    for round_ in zip_longest(*groups):
-        ordered.extend(sorted((c for c in round_ if c is not None), key=popularity))
-    return ordered
+    return [c for round_ in zip_longest(*groups) for c in round_ if c is not None]
 
 
 def _interleave(first: list[Candidate], second: list[Candidate], first_share: float) -> list[Candidate]:
@@ -172,7 +132,6 @@ def _interleave(first: list[Candidate], second: list[Candidate], first_share: fl
 def plan_crawl_order(
     candidates: Iterable[Candidate],
     *,
-    views: Mapping[str, int] | None = None,
     level4_share: float = 0.6,
     seed: int = 42,
 ) -> dict[str, list[Candidate]]:
@@ -182,7 +141,6 @@ def plan_crawl_order(
     about. After them, well-known level 4 articles alternate with narrower level 5 ones, which
     add the niche subjects and the dense neighbourhoods that make recommendations specific.
     """
-    views = views or {}
     by_topic: dict[str, list[Candidate]] = defaultdict(list)
     for candidate in candidates:
         by_topic[candidate.topic].append(candidate)
@@ -194,8 +152,6 @@ def plan_crawl_order(
         for candidate in by_topic[topic]:
             level = candidate.vital_level
             tiers["core" if level <= CORE_MAX_LEVEL else str(min(level, 5))].append(candidate)
-        core, level4, level5 = (
-            _round_robin_by_section(tiers[name], rng, views) for name in ("core", "4", "5")
-        )
+        core, level4, level5 = (_round_robin_by_section(tiers[name], rng) for name in ("core", "4", "5"))
         queues[topic] = core + _interleave(level4, level5, level4_share)
     return queues
