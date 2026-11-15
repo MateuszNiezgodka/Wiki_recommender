@@ -74,7 +74,7 @@ pip install -e .
 
 ### Data
 
-`data/` is not in Git. `python -m wiki_recommender.download` fetches what Stages 3-5 read (processed corpus, fitted model, cached embeddings, statistics and measurements) from the repository's `data-v1` release and unpacks it. `--pack` builds that archive from a local `data/`, to attach it to a release. Without the archive, rebuild everything with the commands of Stages 1-3, about 25 minutes in total.
+`data/` is not in Git. `python -m wiki_recommender.download` fetches what Stages 3-5 read (processed corpus, fitted model, cached embeddings, statistics and measurements) from the repository's `v1` release and unpacks it. `--pack` builds that archive from a local `data/`, to attach it to a release. Without the archive, rebuild everything with the commands of Stages 1-3, about 25 minutes in total.
 
 ## Stage 1: Building the Corpus
 

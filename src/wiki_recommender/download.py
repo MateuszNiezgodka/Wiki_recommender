@@ -4,7 +4,7 @@
     python -m wiki_recommender.download --pack     # build that archive from a local data/ (to publish it)
 
 The archive holds what Stages 3-5 read: the processed corpus, the fitted model, the cached embeddings and
-the statistics and measurements behind the report. Rebuilding all of it instead takes about 2.5 hours
+the statistics and measurements behind the report. Rebuilding all of it instead takes about 25 minutes
 (see README). Only download an archive you trust: the model is a pickle, which runs code when loaded.
 """
 
@@ -21,7 +21,7 @@ import httpx
 log = logging.getLogger(__name__)
 
 ARCHIVE_NAME = "wiki_recommender_data.zip"
-DEFAULT_URL = f"https://github.com/MateuszNiezgodka/Wiki_recommender/releases/download/data-v1/{ARCHIVE_NAME}"
+DEFAULT_URL = f"https://github.com/MateuszNiezgodka/Wiki_recommender/releases/download/v1/{ARCHIVE_NAME}"
 
 FILES = [
     "data/raw/articles_raw.stats.json",
