@@ -148,15 +148,15 @@ Lemmas are the canonical representation (`processed_text`). They are real words,
 
 | Representation | Score | Same subsection | Shared held-out category |
 | :--- | ---: | ---: | ---: |
-| Definition only | 0.226 | 0.306 | 0.147 |
-| Lead only | 0.264 | 0.367 | 0.161 |
-| Full text | 0.294 | 0.407 | 0.180 |
-| Full text, stemmed | 0.287 | 0.399 | 0.176 |
-| Full text + 0.5 × definition | 0.309 | 0.437 | 0.181 |
-| **Final** (+ 0.25 × categories) | **0.323** | **0.450** | **0.197** |
-| Final, stemmed | 0.317 | 0.440 | 0.194 |
+| Definition only | 0.264 | 0.381 | 0.147 |
+| Lead only | 0.314 | 0.467 | 0.161 |
+| Full text | 0.333 | 0.487 | 0.180 |
+| Full text, stemmed | 0.326 | 0.476 | 0.176 |
+| Full text + 0.5 × definition | 0.348 | 0.515 | 0.181 |
+| **Final** (+ 0.25 × categories) | **0.363** | **0.529** | **0.197** |
+| Final, stemmed | 0.359 | 0.525 | 0.194 |
 
-Paired bootstrap intervals (95 %) confirm both choices: the final representation beats full text by +0.030 [+0.019, +0.041], and lemmas beat stems by +0.006 [+0.001, +0.011]. Lemmas win by a small margin, but consistently, and with readable terms.
+Paired bootstrap intervals (95 %) confirm both choices: the final representation beats full text by +0.030 [+0.021, +0.039], and lemmas beat stems by +0.004 [−0.000, +0.008] (+0.007 [+0.003, +0.012] on full text). Lemmas win by a small margin, but consistently, and with readable terms.
 
 ### Document parts
 
@@ -190,12 +190,12 @@ Two signals compare two articles, each a cosine similarity in [0, 1]:
 
 | Signal | Representation | Weight |
 | :--- | :--- | ---: |
-| Text | Stage 2 TF-IDF: lemmas + 0.5 × definition, + 0.25 × categories | 0.60 |
-| Embedding | `BAAI/bge-small-en-v1.5` sentence embedding of the title and the first 150 words | 0.40 |
+| Text | Stage 2 TF-IDF: lemmas + 0.5 × definition, + 0.25 × categories | 0.55 |
+| Embedding | `BAAI/bge-small-en-v1.5` sentence embedding of the title and the first 150 words | 0.45 |
 
-$$s(v, c) = 0.60\,\cos_{\text{text}}(v, c) + 0.40\,\max\big(0, \cos_{\text{emb}}(v, c)\big)$$
+$$s(v, c) = 0.55\,\cos_{\text{text}}(v, c) + 0.45\,\max\big(0, \cos_{\text{emb}}(v, c)\big)$$
 
-A history $V$ is first split into **interests**: visited articles are clustered with average linkage, and two stay together while their mean similarity is at least 0.3. For a candidate $c \notin V$ and interest $I$:
+A history $V$ is first split into **interests**: visited articles are clustered with average linkage, and two stay together while their mean similarity is at least 0.35. For a candidate $c \notin V$ and interest $I$:
 
 $$\text{score}_I(c) = \frac{1}{|I|} \sum_{v \in I} s(v, c), \qquad \text{score}(c) = \max_I\, \text{score}_I(c)$$
 
@@ -203,28 +203,28 @@ The list's slots are shared between interests in proportion to their size, each 
 
 ### Choosing the settings
 
-`recommender.evaluate` compares only the embedding variants already cached in `data/processed/embeddings/` (a fresh `--build` caches bge-small) and skips the others with a warning. It uses the relevance signals of Stage 2: the same Vital articles subsection, and a shared category from a held-out half that no signal sees. Weights and aggregation were chosen on half of the articles; the numbers below come from the other half (1,093 articles).
+`recommender.evaluate` compares the cached embedding variants in `data/processed/embeddings/` (a fresh `--build` caches bge-small). It uses the relevance signals of Stage 2: the same Vital articles subsection, and a shared category from a held-out half that no signal sees. Weights and aggregation were chosen on half of the articles; the numbers below come from the other half (1,093 articles).
 
 **Single articles** (share of the 10 nearest neighbours that are related):
 
 | Signals | Score | Same subsection | Shared held-out category |
 | :--- | ---: | ---: | ---: |
-| bge-small embedding only | 0.302 | 0.423 | 0.180 |
-| Text only (Stage 2) | 0.323 | 0.450 | 0.197 |
-| **Text + bge-small** | **0.338** | **0.471** | **0.205** |
+| bge-small embedding only | 0.355 | 0.530 | 0.180 |
+| Text only (Stage 2) | 0.363 | 0.529 | 0.197 |
+| **Text + bge-small** | **0.383** | **0.562** | **0.204** |
 
-Text and embeddings complement each other: together they beat text alone by +0.011 [+0.005, +0.016] and the embedding alone by +0.029 [+0.022, +0.036] (95 % paired bootstrap). Embedding up to 6 passages per article instead of 1 did not help once combined with text. Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
+Text and embeddings complement each other: together they beat text alone by +0.015 [+0.009, +0.022] and the embedding alone by +0.026 [+0.018, +0.034] (95 % paired bootstrap). Embedding up to 6 passages per article instead of 1 did not help once combined with text. Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
 
 **Histories of visited articles** (two interests: 3 + 2 articles from subsections of different topics; *coverage* is the share of interests that get at least one recommendation):
 
 | Aggregation | 1 interest, 3 articles | 1 interest, 5 articles | 2 interests | Coverage, 2 interests |
 | :--- | ---: | ---: | ---: | ---: |
-| Mean (centroid) | 0.349 | 0.334 | 0.459 | 0.79 |
-| Power mean, p = 4 | 0.343 | 0.336 | 0.510 | 0.86 |
-| Maximum | 0.323 | 0.319 | 0.518 | 0.87 |
-| **Interests (threshold 0.3)** | **0.348** | **0.337** | **0.546** | **0.98** |
+| Mean (centroid) | 0.302 | 0.341 | 0.435 | 0.69 |
+| Power mean, p = 4 | 0.299 | 0.356 | 0.477 | 0.76 |
+| Maximum | 0.280 | 0.326 | 0.473 | 0.78 |
+| **Interests (threshold 0.35)** | **0.301** | **0.339** | **0.536** | **0.91** |
 
-Splitting a history into interests costs almost nothing when it has one topic (−0.001) and gains +0.088 [+0.078, +0.098] over the mean when it has two, because the mean favours articles that sit between both topics and match neither well.
+Splitting a history into interests costs almost nothing when it has one topic (−0.001) and gains +0.102 [+0.088, +0.115] over the mean when it has two, because the mean favours articles that sit between both topics and match neither well.
 
 | Output in `data/processed/` | Contents |
 | :--- | :--- |
@@ -236,7 +236,7 @@ Splitting a history into interests costs almost nothing when it has one topic (�
 
 Each recommendation also carries the parts its score is made of. With the default mean (p = 1) they add up exactly:
 
-$$\text{score}(c) = \sum_{\text{terms } w} 0.60\, u_w\, c_w + 0.40\,\overline{\cos}_{\text{emb}} = \frac{1}{|I|}\sum_{v \in I} s(v, c)$$
+$$\text{score}(c) = \sum_{\text{terms } w} 0.55\, u_w\, c_w + 0.45\,\overline{\cos}_{\text{emb}} = \frac{1}{|I|}\sum_{v \in I} s(v, c)$$
 
 where $u$ is the mean text vector of the interest $I$. `signal_contributions` holds the two signal parts, `term_contributions` the largest shared terms of the text part, and `interest` the visited articles the score is averaged over.
 

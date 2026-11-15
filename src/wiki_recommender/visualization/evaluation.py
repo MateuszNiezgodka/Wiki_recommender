@@ -27,12 +27,6 @@ REPRESENTATION_EVAL_PATH = Path("data/processed/representation_eval.json")
 RECOMMENDER_EVAL_PATH = Path("data/processed/recommender_eval.json")
 
 _HISTORIES = ["one interest, 3 articles", "one interest, 5 articles", "two interests, 3+2"]
-_AGGREGATIONS = {
-    "mean (p=1)": "mean (centroid)",
-    "power p=4": "power mean, p = 4",
-    "max": "maximum",
-    "interests t=0.3, p=1.0": "interests, t = 0.3",
-}
 
 
 def load_eval(path: Path) -> dict:
@@ -85,13 +79,20 @@ def plot_aggregation_eval(results: dict) -> plt.Figure:
     apply_style()
     fig, axes = plt.subplots(1, 4, figsize=(15, 2.9), sharey=True, gridspec_kw={"wspace": 0.12})
     chosen = results["final_aggregation"]["label"]
-    labels = list(_AGGREGATIONS.values())
+    threshold = results["final_aggregation"].get("interest_threshold", 0.3)
+    aggregations = {
+        "mean (p=1)": "mean (centroid)",
+        "power p=4": "power mean, p = 4",
+        "max": "maximum",
+        chosen: f"interests, t = {threshold}",
+    }
+    labels = list(aggregations.values())
     panels = [(h, "primary", h) for h in _HISTORIES] + [
         ("two interests, 3+2", "coverage", "coverage, 2 interests")
     ]
     for ax, (history, metric, title) in zip(axes, panels, strict=True):
-        values = [results["histories"][history][key]["test"][metric] for key in _AGGREGATIONS]
-        colors = [SERIES[0] if key == chosen else CONTEXT for key in _AGGREGATIONS]
+        values = [results["histories"][history][key]["test"][metric] for key in aggregations]
+        colors = [SERIES[0] if key == chosen else CONTEXT for key in aggregations]
         ax.barh(labels, values, height=BAR_HEIGHT, color=colors)
         for row, value in enumerate(values):
             ax.text(value + 0.01, row, f"{value:.3f}", va="center", fontsize=9, color=INK)

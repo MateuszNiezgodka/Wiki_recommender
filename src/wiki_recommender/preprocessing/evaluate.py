@@ -3,7 +3,7 @@
 For every article, the 10 most similar articles are scored against three signals:
 
 - `section`: same subsection of the Vital articles lists, an editor's grouping of related subjects.
-  Normalized by how many other articles the subsection holds. Subsections below 5 articles are skipped.
+  Normalized by how many other articles the subsection holds. Subsections below 3 articles are skipped.
 - `category`: shares a held-out category. Half the categories are hidden from every representation and
   used only here, so a representation that uses categories cannot score by reading the answer.
 - `mutual_link`: both articles link to each other. Article text contains link anchors, which favours
@@ -35,7 +35,7 @@ from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectori
 log = logging.getLogger(__name__)
 
 K = 10
-_MIN_SECTION_SIZE = 5
+_MIN_SECTION_SIZE = 3
 _MAX_CATEGORY_ARTICLES = 200
 _SIMILARITY_BATCH = 400
 _BOOTSTRAP_ROUNDS = 2000

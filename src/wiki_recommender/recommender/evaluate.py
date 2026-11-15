@@ -35,23 +35,25 @@ import numpy as np
 import pyarrow.parquet as pq
 import scipy.sparse as sp
 
-from wiki_recommender.preprocessing.evaluate import Labels, build_labels, is_hidden_category, is_test_article
+from wiki_recommender.preprocessing.evaluate import (
+    _MIN_SECTION_SIZE,
+    Labels,
+    build_labels,
+    is_hidden_category,
+    is_test_article,
+)
 from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectorizer
-from wiki_recommender.recommender.model import PROCESSED_PATH, Settings, corpus_passage_vectors
+from wiki_recommender.recommender.model import PROCESSED_PATH, corpus_passage_vectors
 from wiki_recommender.recommender.scoring import interest_ranking, power_mean, top_indices
 
 log = logging.getLogger(__name__)
 
 K = 10
-_MIN_SECTION = 5
+_MIN_SECTION = _MIN_SECTION_SIZE
 _HISTORIES = 400
 _BOOTSTRAP_ROUNDS = 2000
 _WEIGHT_STEP = 0.05
 EMBEDDING_VARIANTS = {
-    "minilm, 1 passage": ("sentence-transformers/all-MiniLM-L6-v2", 1),
-    "minilm, 2 passages": ("sentence-transformers/all-MiniLM-L6-v2", 2),
-    "minilm, 4 passages": ("sentence-transformers/all-MiniLM-L6-v2", 4),
-    "minilm, 6 passages": ("sentence-transformers/all-MiniLM-L6-v2", 6),
     "bge-small, 1 passage": ("BAAI/bge-small-en-v1.5", 1),
 }
 HISTORY_SHAPES = {
@@ -66,9 +68,8 @@ AGGREGATIONS: dict[str, dict[str, Any]] = {
     "power p=8": {"aggregation": "power", "power": 8.0},
     "max": {"aggregation": "power", "power": np.inf},
     **{
-        f"interests t={t}, p={p}": {"aggregation": "interests", "interest_threshold": t, "power": p}
+        f"interests t={t}, p=1.0": {"aggregation": "interests", "interest_threshold": t, "power": 1.0}
         for t in (0.2, 0.3, 0.35, 0.4, 0.45, 0.5)
-        for p in (1.0, 2.0, 4.0)
     },
 }
 
@@ -205,7 +206,7 @@ def weight_grid(signals: list[str], step: float = _WEIGHT_STEP) -> list[dict[str
     grid = []
     for parts in itertools.product(range(steps + 1), repeat=len(signals)):
         if sum(parts) == steps:
-            grid.append({signal: part * step for signal, part in zip(signals, parts, strict=True)})
+            grid.append({signal: round(part * step, 4) for signal, part in zip(signals, parts, strict=True)})
     return grid
 
 
@@ -250,7 +251,7 @@ def sample_histories(
         size: [
             code
             for code, rows in members.items()
-            if len(rows) >= size and labels.section_size[rows[0]] >= size + K
+            if len(rows) >= size and labels.section_size[rows[0]] >= size + _MIN_SECTION
         ]
         for size in set(shape)
     }
@@ -336,18 +337,12 @@ def evaluate(path: Path) -> dict[str, Any]:
         embeddings, key=lambda name: summarize(single[name], tuning)["primary"], default=None
     )
 
-    settings = Settings()
     tuned = {"text": {"text": 1.0}}
     for label, embedding in [(f"text + {e}", e) for e in embeddings]:
-        weights = {"text": settings.weight("text"), embedding: settings.weight("embedding")}
+        weights, score = tune_weights(data, embedding)
         tuned[label] = weights
         single[label] = neighbour_scores(data.labels, nearest(combined(data, weights), every, len(every)))
-        log.info(
-            "Scored %s: %s (tuning primary %.4f)",
-            label,
-            weights,
-            summarize(single[label], tuning)["primary"],
-        )
+        log.info("Tuned %s: %s (tuning primary %.4f)", label, weights, score)
     final_label = max(tuned, key=lambda label: summarize(single[label], tuning)["primary"])
     final_weights = tuned[final_label]
 
@@ -393,7 +388,7 @@ def evaluate(path: Path) -> dict[str, Any]:
         histories_report[shape_name] = shape_report
         log.info("Scored histories: %s", shape_name)
 
-    best_aggregation = f"interests t={settings.interest_threshold}, p={settings.power}"
+    best_aggregation = max(tuning_totals, key=lambda name: np.mean(tuning_totals[name]))
     report["histories"] = histories_report
     report["final_aggregation"] = {"label": best_aggregation, **AGGREGATIONS[best_aggregation]}
     report["history_comparisons_on_test"] = {

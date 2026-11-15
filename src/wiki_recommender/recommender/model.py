@@ -48,10 +48,10 @@ class Settings:
     (see `data/processed/recommender_eval.json`).
     """
 
-    weights: tuple[float, float] = (0.60, 0.40)  # text, embedding
+    weights: tuple[float, float] = (0.55, 0.45)  # text, embedding
     aggregation: str = "interests"  # "power" or "interests"
     power: float = 1.0
-    interest_threshold: float = 0.3
+    interest_threshold: float = 0.35
     embedding_model: str = DEFAULT_MODEL
     embedding_passages: int = DEFAULT_PASSAGES
 
