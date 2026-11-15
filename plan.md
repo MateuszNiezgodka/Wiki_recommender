@@ -252,7 +252,7 @@ Agreeing on exact column names lets both students work in parallel from day one:
    - `revision_id` (`int`), `retrieved_at` (`str`, ISO 8601 UTC): Exact page version and fetch time
 
 2. **`data/processed/articles_processed.parquet`** *(produced by Stage 2, consumed by Stages 3–5)*:
-   - Inherits `article_id`, `title`, `url`, `summary`, `word_count`, `outlinks`, `sections`, `topic`, `vital_level` (`raw_text` is dropped to keep the file small)
+   - Inherits `article_id`, `title`, `url`, `summary`, `word_count`, `topic`, `vital_level` (`raw_text` is dropped to keep the file small)
    - `categories` (`list[str]`): Raw categories without Wikipedia maintenance ones (`Articles with ...`, `Living people`)
    - `seed_section` (`str`): Vital articles subsection with HTML anchors removed
    - `tokens_lemmatized` (`list[str]`): Cleaned, stopword-filtered lemmas of lead + body, in text order
@@ -260,7 +260,6 @@ Agreeing on exact column names lets both students work in parallel from day one:
    - `token_count` (`int`), `lead_token_count` (`int`): `tokens_lemmatized[:lead_token_count]` is the lead
    - `tokens_definition`, `tokens_definition_stemmed` (`list[str]`): First full lead paragraph (what the article *is*)
    - `categories_lemmatized` (`list[str]`): One space-joined lemmatized string per category
-   - `processed_text` (`str`): Space-joined definition + article lemmas + `cat:`-prefixed category tokens
 
 ---
 

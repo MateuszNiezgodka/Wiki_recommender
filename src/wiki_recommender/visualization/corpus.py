@@ -56,10 +56,9 @@ def load_corpus_frame(path: Path = PROCESSED_PATH) -> pd.DataFrame:
         "token_count",
         "lead_token_count",
     ]
-    table = pq.read_table(path, columns=[*columns, "categories", "outlinks", "sections"])
+    table = pq.read_table(path, columns=[*columns, "categories"])
     frame = table.select(columns).to_pandas()
-    for name in ("categories", "outlinks", "sections"):
-        frame[name] = [len(values) for values in table[name].to_pylist()]
+    frame["categories"] = [len(values) for values in table["categories"].to_pylist()]
     return frame
 
 

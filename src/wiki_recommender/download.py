@@ -31,7 +31,7 @@ FILES = [
     "data/processed/recommender.pkl",
     "data/processed/recommender_eval.json",
     "data/processed/representation_eval.json",
-    "data/processed/embeddings/BAAI__bge-small-en-v1.5.passages1.npz",
+    "data/processed/embeddings/BAAI__bge-small-en-v1.5.npz",
 ]
 
 

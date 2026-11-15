@@ -97,7 +97,6 @@ def test_record_joins_lead_and_body_and_records_the_boundary():
     assert record["tokens_lemmatized"] == ["dog", "wolf", "human", "meat"]
     assert record["tokens_lemmatized"][: record["lead_token_count"]] == ["dog", "wolf", "human"]
     assert record["categories_lemmatized"] == ["animal pet", "canine"]
-    assert record["processed_text"] == "dog wolf dog wolf human meat cat:animal cat:pet cat:canine"
     assert record["seed_section"] == "Animals"
     assert record["categories"] == ["Domesticated animals"]
 
@@ -137,7 +136,6 @@ def test_a_single_article_is_processed_like_the_corpus(processed):
     corpus_row = pq.read_table(config.output).to_pylist()[0]
     alone = process_article(load_nlp(), RAW[0], repairs)
     assert alone["tokens_lemmatized"] == corpus_row["tokens_lemmatized"]
-    assert alone["processed_text"] == corpus_row["processed_text"]
 
 
 def test_repairs_round_trip_and_tolerate_a_missing_file(tmp_path):
@@ -196,7 +194,7 @@ def _section_labels(sections):
     size = {s: sections.count(s) for s in sections}
     n = len(sections)
     empty = sp.csr_matrix((n, 1))
-    return Labels(np.array(sections), np.array([size[s] for s in sections]), empty, sp.csr_matrix((n, n)))
+    return Labels(np.array(sections), np.array([size[s] for s in sections]), empty)
 
 
 def test_neighbours_exclude_the_article_itself_and_are_ranked():
@@ -213,16 +211,13 @@ def test_section_score_is_normalized_by_what_the_section_can_give():
     assert np.isnan(scores[5])
 
 
-def test_labels_hide_categories_and_detect_only_mutual_links():
+def test_labels_hide_categories_and_group_sections():
     labels = build_labels(
         ["A", "B", "C"],
         ["t", "t", "t"],
         ["s", "s", "z"],
         [[], [], []],
-        [["B", "C"], ["A"], []],
     )
-    assert labels.mutual_link[0, 1] == 1 and labels.mutual_link[1, 0] == 1
-    assert labels.mutual_link[0, 2] == 0
     assert labels.section[0] == labels.section[1] != labels.section[2]
 
 
@@ -230,7 +225,6 @@ def test_primary_score_averages_section_and_category():
     scores = {
         "section": np.array([1.0, np.nan]),
         "category": np.array([0.5, 0.5]),
-        "mutual_link": np.array([0.0, 0.0]),
     }
     assert summarize_scores(scores, np.array([True, True]))["primary"] == 0.75
 

@@ -16,7 +16,6 @@ import pyarrow.parquet as pq
 from spacy.lang.en.stop_words import STOP_WORDS
 
 from wiki_recommender.preprocessing.clean import (
-    CATEGORY_TOKEN_PREFIX,
     clean_section_label,
     clean_wiki_text,
     first_paragraph,
@@ -41,10 +40,7 @@ PROCESSED_SCHEMA = pa.schema(
         ("tokens_definition", pa.list_(pa.string())),
         ("tokens_definition_stemmed", pa.list_(pa.string())),
         ("categories_lemmatized", pa.list_(pa.string())),  # one space-joined entry per category
-        ("processed_text", pa.string()),
         ("categories", pa.list_(pa.string())),
-        ("outlinks", pa.list_(pa.string())),
-        ("sections", pa.list_(pa.string())),
         ("topic", pa.string()),
         ("seed_section", pa.string()),
         ("vital_level", pa.int8()),
@@ -192,7 +188,6 @@ def build_record(raw: dict[str, Any], article: TokenizedArticle) -> dict[str, An
     tokens = lead + article.lemmas["body"].split()
     definition = article.lemmas["definition"].split()
     categories = [line for line in article.lemmas["categories"].split("\n") if line]
-    category_tokens = [CATEGORY_TOKEN_PREFIX + token for line in categories for token in line.split()]
     return {
         "article_id": raw["article_id"],
         "title": raw["title"],
@@ -206,10 +201,7 @@ def build_record(raw: dict[str, Any], article: TokenizedArticle) -> dict[str, An
         "tokens_definition": definition,
         "tokens_definition_stemmed": article.stems["definition"].split(),
         "categories_lemmatized": categories,
-        "processed_text": " ".join(definition + tokens + category_tokens),
         "categories": informative_categories(list(raw["categories"])),
-        "outlinks": raw["outlinks"],
-        "sections": raw["sections"],
         "topic": raw["topic"],
         "seed_section": clean_section_label(raw["seed_section"]),
         "vital_level": raw["vital_level"],

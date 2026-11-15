@@ -43,7 +43,7 @@ from wiki_recommender.preprocessing.evaluate import (
     is_test_article,
 )
 from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectorizer
-from wiki_recommender.recommender.model import PROCESSED_PATH, corpus_passage_vectors
+from wiki_recommender.recommender.model import PROCESSED_PATH, corpus_embeddings
 from wiki_recommender.recommender.scoring import interest_ranking, power_mean, top_indices
 
 log = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ _HISTORIES = 400
 _BOOTSTRAP_ROUNDS = 2000
 _WEIGHT_STEP = 0.05
 EMBEDDING_VARIANTS = {
-    "bge-small, 1 passage": ("BAAI/bge-small-en-v1.5", 1),
+    "bge-small, 1 passage": "BAAI/bge-small-en-v1.5",
 }
 HISTORY_SHAPES = {
     "one interest, 3 articles": (3,),
@@ -143,13 +143,12 @@ class EvalData:
     similarities: dict[str, np.ndarray]  # dense corpus x corpus similarity per signal
 
 
-def load_eval_data(path: Path, variants: dict[str, tuple[str, int]]) -> EvalData:
+def load_eval_data(path: Path, variants: dict[str, str]) -> EvalData:
     columns = [
         "article_id",
         "title",
         "topic",
         "seed_section",
-        "outlinks",
         "tokens_lemmatized",
         "tokens_definition",
         "categories_lemmatized",
@@ -158,8 +157,7 @@ def load_eval_data(path: Path, variants: dict[str, tuple[str, int]]) -> EvalData
     titles = table["title"].to_pylist()
     topics = table["topic"].to_pylist()
     categories = table["categories_lemmatized"].to_pylist()
-    outlinks = table["outlinks"].to_pylist()
-    labels = build_labels(titles, topics, table["seed_section"].to_pylist(), categories, outlinks)
+    labels = build_labels(titles, topics, table["seed_section"].to_pylist(), categories)
     visible = [
         [token for category in entry if not is_hidden_category(category) for token in category.split()]
         for entry in categories
@@ -179,15 +177,13 @@ def load_eval_data(path: Path, variants: dict[str, tuple[str, int]]) -> EvalData
         "text": dense(DocumentVectorizer().fit_transform(parts)),
     }
     article_ids = pq.read_table(path, columns=["article_id"])["article_id"].to_pylist()
-    for name, (model, passages) in variants.items():
+    for name, model in variants.items():
         try:
-            vectors = corpus_passage_vectors(
-                article_ids, model, passages, directory=_embeddings_dir(path), compute=False
-            )
+            vectors = corpus_embeddings(article_ids, model, directory=_embeddings_dir(path), compute=False)
         except FileNotFoundError:
             log.warning("No cached embeddings for %s; skipped", name)
             continue
-        similarities[name] = dense(vectors.pool(passages))
+        similarities[name] = dense(vectors)
     test = np.array([is_test_article(title) for title in titles])
     return EvalData(titles, np.array(topics), labels, test, similarities)
 

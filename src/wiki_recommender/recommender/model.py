@@ -23,12 +23,8 @@ import scipy.sparse as sp
 from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectorizer
 from wiki_recommender.recommender.embeddings import (
     DEFAULT_MODEL,
-    DEFAULT_PASSAGES,
-    MAX_PASSAGES,
-    PassageVectors,
-    article_passages,
+    article_passage,
     embed_articles,
-    embed_passages,
 )
 
 log = logging.getLogger(__name__)
@@ -53,7 +49,6 @@ class Settings:
     power: float = 1.0
     interest_threshold: float = 0.35
     embedding_model: str = DEFAULT_MODEL
-    embedding_passages: int = DEFAULT_PASSAGES
 
     def weight(self, signal: str) -> float:
         return self.weights[SIGNALS.index(signal)] / sum(self.weights)
@@ -122,10 +117,10 @@ class RecommenderModel:
             definitions=[processed["tokens_definition"]],
             categories=[[token for c in processed["categories_lemmatized"] for token in c.split()]],
         )
-        passages = [article_passages(processed["title"], raw_text, self.settings.embedding_passages)]
+        passage = article_passage(processed["title"], raw_text)
         return ArticleVectors(
             text=self.text_vectorizer.transform(parts),
-            embedding=embed_articles(passages, self.settings.embedding_model),
+            embedding=embed_articles([passage], self.settings.embedding_model),
         )
 
     def save(self, path: Path = MODEL_PATH) -> None:
@@ -141,61 +136,34 @@ class RecommenderModel:
             return pickle.load(file)
 
 
-def _passages_path(model_name: str, passages: int, directory: Path) -> Path:
-    return directory / f"{model_name.replace('/', '__')}.passages{passages}.npz"
-
-
-def corpus_passage_vectors(
-    article_ids: list[int],
-    model_name: str,
-    passages_per_article: int = MAX_PASSAGES,
-    raw_path: Path = RAW_PATH,
-    directory: Path = EMBEDDINGS_DIR,
-    compute: bool = True,
-) -> PassageVectors:
-    """Embed the corpus passages once and cache them. A cache with more passages per article serves too.
-
-    With `compute=False`, a missing cache raises FileNotFoundError instead of starting a long run.
-    """
-    for cached in sorted(directory.glob(f"{model_name.replace('/', '__')}.passages*.npz")):
-        if int(cached.stem.rsplit("passages", 1)[1]) < passages_per_article:
-            continue
-        with np.load(cached) as data:
-            if np.array_equal(data["article_ids"], article_ids):
-                return PassageVectors(data["vectors"], data["owners"], data["positions"], len(article_ids))
-    if not compute:
-        raise FileNotFoundError(f"no cached {model_name} embeddings with {passages_per_article} passages")
-
-    raw = pq.read_table(raw_path, columns=["article_id", "title", "raw_text"]).to_pylist()
-    by_id = {row["article_id"]: row for row in raw}
-    passages = [
-        article_passages(by_id[i]["title"], by_id[i]["raw_text"], passages_per_article) for i in article_ids
-    ]
-    total = sum(map(len, passages))
-    log.info("Embedding %d articles (%d passages) with %s", len(passages), total, model_name)
-    vectors = embed_passages(passages, model_name, show_progress=True)
-    path = _passages_path(model_name, passages_per_article, directory)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        path,
-        vectors=vectors.vectors,
-        owners=vectors.owners,
-        positions=vectors.positions,
-        article_ids=np.asarray(article_ids),
-    )
-    return vectors
+def _embeddings_path(model_name: str, directory: Path) -> Path:
+    return directory / f"{model_name.replace('/', '__')}.npz"
 
 
 def corpus_embeddings(
     article_ids: list[int],
     model_name: str,
-    passages_per_article: int = MAX_PASSAGES,
     raw_path: Path = RAW_PATH,
     directory: Path = EMBEDDINGS_DIR,
+    compute: bool = True,
 ) -> np.ndarray:
-    """One embedding per corpus article, in corpus order, from its first `passages_per_article` passages."""
-    vectors = corpus_passage_vectors(article_ids, model_name, passages_per_article, raw_path, directory)
-    return vectors.pool(passages_per_article)
+    """One embedding per corpus article, in corpus order, cached on disk."""
+    path = _embeddings_path(model_name, directory)
+    if path.exists():
+        with np.load(path) as data:
+            if np.array_equal(data["article_ids"], article_ids):
+                return data["vectors"]
+    if not compute:
+        raise FileNotFoundError(f"no cached {model_name} embeddings at {path}")
+
+    raw = pq.read_table(raw_path, columns=["article_id", "title", "raw_text"]).to_pylist()
+    by_id = {row["article_id"]: row for row in raw}
+    passages = [article_passage(by_id[i]["title"], by_id[i]["raw_text"]) for i in article_ids]
+    log.info("Embedding %d articles with %s", len(passages), model_name)
+    vectors = embed_articles(passages, model_name, show_progress=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(path, vectors=vectors, article_ids=np.asarray(article_ids))
+    return vectors
 
 
 def load_index(processed_path: Path = PROCESSED_PATH) -> ArticleIndex:
@@ -226,9 +194,7 @@ def build_model(
     log.info("Fitting TF-IDF on %d articles", len(index))
     text_vectorizer = DocumentVectorizer()
     text = text_vectorizer.fit_transform(load_parts(processed_path))
-    embedding = corpus_embeddings(
-        index.article_ids, settings.embedding_model, settings.embedding_passages, raw_path, embeddings_dir
-    )
+    embedding = corpus_embeddings(index.article_ids, settings.embedding_model, raw_path, embeddings_dir)
     return RecommenderModel(
         index=index,
         vectors=ArticleVectors(text, embedding),

@@ -140,7 +140,7 @@ spaCy guesses lemmas for words it does not know by stripping a plural ending, wh
 
 ### Lemmas over stems
 
-Lemmas are the canonical representation (`processed_text`). They are real words, which keeps the report's term charts and score explanations readable (`university`, not `univers`), and they do not merge unrelated words the way stems do (*universe* and *university* share the stem `univers`). They also retrieve slightly better, as measured below.
+Lemmas are the canonical representation (`tokens_lemmatized`). They are real words, which keeps the report's term charts and score explanations readable (`university`, not `univers`), and they do not merge unrelated words the way stems do (*universe* and *university* share the stem `univers`). They also retrieve slightly better, as measured below.
 
 ### Choosing the representation
 
@@ -160,7 +160,7 @@ Paired bootstrap intervals (95 %) confirm both choices: the final representation
 
 ### Document parts
 
-Each article also keeps its **definition** (the first full lead paragraph, which says what the subject is), the length of its lead, and its lemmatized categories. `processed_text` joins definition, article and `cat:`-prefixed category tokens for a plain `TfidfVectorizer`, while `DocumentVectorizer` in [`vectors.py`](./src/wiki_recommender/preprocessing/vectors.py) weights the parts separately: whole article + 0.5 × definition for the text, plus 0.25 × categories.
+Each article also keeps its **definition** (the first full lead paragraph, which says what the subject is), the length of its lead, and its lemmatized categories. `DocumentVectorizer` in [`vectors.py`](./src/wiki_recommender/preprocessing/vectors.py) weights the parts separately: whole article + 0.5 × definition for the text, plus 0.25 × categories.
 
 ## Stage 3: Recommendations
 
@@ -213,7 +213,7 @@ The list's slots are shared between interests in proportion to their size, each 
 | Text only (Stage 2) | 0.363 | 0.529 | 0.197 |
 | **Text + bge-small** | **0.383** | **0.562** | **0.204** |
 
-Text and embeddings complement each other: together they beat text alone by +0.015 [+0.009, +0.022] and the embedding alone by +0.026 [+0.018, +0.034] (95 % paired bootstrap). Embedding up to 6 passages per article instead of 1 did not help once combined with text. Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
+Text and embeddings complement each other: together they beat text alone by +0.015 [+0.009, +0.022] and the embedding alone by +0.026 [+0.018, +0.034] (95 % paired bootstrap). Larger models (`all-mpnet-base-v2`, `bge-base-en-v1.5`) embed about 3 times slower than bge-small on CPU and were not compared.
 
 **Histories of visited articles** (two interests: 3 + 2 articles from subsections of different topics; *coverage* is the share of interests that get at least one recommendation):
 
@@ -262,11 +262,11 @@ explain(result, rank=1)       # one score as a waterfall of shared terms and sig
 plot_visited_heatmap(result)  # similarity of every visited article to every recommendation
 ```
 
-[`visualization/corpus.py`](./src/wiki_recommender/visualization/corpus.py) draws the database statistics (composition, lengths, vocabulary, frequent and characteristic terms, similarity distributions, topic heatmap, t-SNE map) and [`visualization/evaluation.py`](./src/wiki_recommender/visualization/evaluation.py) the measurements above.
+[`visualization/corpus.py`](./src/wiki_recommender/visualization/corpus.py) draws the database statistics (composition, lengths, vocabulary, frequent and characteristic terms, similarity distributions, topic heatmap) and [`visualization/evaluation.py`](./src/wiki_recommender/visualization/evaluation.py) the measurements above.
 
 ```bash
-uv run jupyter nbconvert --to notebook --execute --inplace notebooks/final_report.ipynb   # ~2 min, refreshes reports/figures/
-uv run jupyter nbconvert --to html --output-dir reports notebooks/final_report.ipynb
+uv run jupyter nbconvert --to notebook --execute --inplace notebooks/final_report.ipynb   # refreshes reports/figures/
+uv run jupyter nbconvert --to html --no-input --output-dir reports notebooks/final_report.ipynb
 ```
 
 `reports/final_report.pdf` is that HTML printed to PDF in a browser (here with headless Edge: `msedge --headless --print-to-pdf=reports/final_report.pdf reports/final_report.html`), since `nbconvert --to pdf` needs a LaTeX installation.

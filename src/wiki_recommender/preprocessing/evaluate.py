@@ -1,13 +1,11 @@
 """Compare document representations against relevance labels that do not come from the article text.
 
-For every article, the 10 most similar articles are scored against three signals:
+For every article, the 10 most similar articles are scored against two signals:
 
 - `section`: same subsection of the Vital articles lists, an editor's grouping of related subjects.
   Normalized by how many other articles the subsection holds. Subsections below 3 articles are skipped.
 - `category`: shares a held-out category. Half the categories are hidden from every representation and
   used only here, so a representation that uses categories cannot score by reading the answer.
-- `mutual_link`: both articles link to each other. Article text contains link anchors, which favours
-  text-heavy representations, so this is a supporting signal rather than part of the primary score.
 
 Primary score = mean(section, category). Reports the test half of the articles; the weights were chosen
 on the other half, so these numbers are not fitted to the articles they describe.
@@ -29,7 +27,6 @@ import numpy as np
 import pyarrow.parquet as pq
 import scipy.sparse as sp
 
-from wiki_recommender.crawler.titles import normalize_title
 from wiki_recommender.preprocessing.vectors import ArticleParts, DocumentVectorizer, tfidf_vectorizer
 
 log = logging.getLogger(__name__)
@@ -68,7 +65,6 @@ class Labels:
     section: np.ndarray
     section_size: np.ndarray
     category: sp.csr_matrix
-    mutual_link: sp.csr_matrix
 
 
 def build_labels(
@@ -76,9 +72,8 @@ def build_labels(
     topics: list[str],
     sections: list[str],
     categories: list[list[str]],
-    outlinks: list[list[str]],
 ) -> Labels:
-    """Encode the three relevance signals."""
+    """Encode the two relevance signals."""
     keys = list(zip(topics, sections, strict=True))
     sizes = Counter(keys)
     codes = {key: code for code, key in enumerate(sizes)}
@@ -89,18 +84,10 @@ def build_labels(
     columns = {c: column for column, c in enumerate(usable)}
     pairs = [(row, columns[c]) for row, entry in enumerate(hidden) for c in set(entry) if c in columns]
 
-    index = {title: row for row, title in enumerate(titles)}
-    links = [
-        (row, index[target])
-        for row, targets in enumerate(outlinks)
-        for target in {normalize_title(link) for link in targets}
-        if target in index and index[target] != row
-    ]
     return Labels(
         section=np.array([codes[key] for key in keys]),
         section_size=np.array([sizes[key] for key in keys]),
         category=_binary_matrix(pairs, (len(titles), len(usable))),
-        mutual_link=(lambda m: m.multiply(m.T).tocsr())(_binary_matrix(links, (len(titles), len(titles)))),
     )
 
 
@@ -133,17 +120,12 @@ def score_queries(labels: Labels, neighbours: np.ndarray) -> dict[str, np.ndarra
     section = np.where(labels.section_size >= _MIN_SECTION_SIZE, same_section / possible, np.nan)
 
     has_category = np.asarray(labels.category.sum(axis=1)).ravel() > 0
-    has_link = np.asarray(labels.mutual_link.sum(axis=1)).ravel() > 0
     category = np.full(n, np.nan)
-    mutual_link = np.full(n, np.nan)
     for row in range(n):
         if has_category[row]:
             shared = labels.category[neighbours[row]] @ labels.category[row].T
             category[row] = np.mean(shared.toarray().ravel() > 0)
-        if has_link[row]:
-            linked = labels.mutual_link[row, neighbours[row]]
-            mutual_link[row] = np.mean(linked.toarray().ravel() > 0)
-    return {"section": section, "category": category, "mutual_link": mutual_link}
+    return {"section": section, "category": category}
 
 
 def summarize_scores(scores: dict[str, np.ndarray], mask: np.ndarray) -> dict[str, float]:
@@ -197,7 +179,6 @@ def evaluate(path: Path) -> dict[str, Any]:
         "title",
         "topic",
         "seed_section",
-        "outlinks",
         "lead_token_count",
         "tokens_lemmatized",
         "tokens_stemmed",
@@ -213,7 +194,6 @@ def evaluate(path: Path) -> dict[str, Any]:
         table["topic"].to_pylist(),
         table["seed_section"].to_pylist(),
         categories,
-        table["outlinks"].to_pylist(),
     )
     visible = [
         [token for category in entry if not is_hidden_category(category) for token in category.split()]
@@ -248,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, summary in report["test"].items():
         print(
             f"{name:26} primary={summary['primary']:.3f} section={summary['section']:.3f} "
-            f"category={summary['category']:.3f} mutual_link={summary['mutual_link']:.3f}"
+            f"category={summary['category']:.3f}"
         )
     for name, comparison in report["comparisons_on_test"].items():
         print(
