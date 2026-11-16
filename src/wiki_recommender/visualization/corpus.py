@@ -349,7 +349,7 @@ def plot_similarity_distributions(sample: SimilaritySample) -> plt.Figure:
         x=0.01,
         ha="left",
         fontweight="bold",
-        y=1.08,
+        y=1.16,
     )
     return fig
 

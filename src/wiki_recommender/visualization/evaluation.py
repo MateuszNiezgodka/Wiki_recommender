@@ -26,6 +26,8 @@ from wiki_recommender.visualization.style import (
 REPRESENTATION_EVAL_PATH = Path("data/processed/representation_eval.json")
 RECOMMENDER_EVAL_PATH = Path("data/processed/recommender_eval.json")
 
+_RELATED_SHARE = "share of the 10 most similar articles that are related (higher is better)"
+
 _HISTORIES = ["one interest, 3 articles", "one interest, 5 articles", "two interests, 3+2"]
 
 
@@ -56,8 +58,8 @@ def plot_representation_eval(results: dict, ax: plt.Axes | None = None) -> plt.A
         ax = plt.subplots(figsize=(8, 3.6))[1]
     names = list(results["test"])
     values = [results["test"][name]["primary"] for name in names]
-    _ranked_bars(ax, names, values, "final", "share of the 10 nearest neighbours that are related")
-    ax.set_title(f"Text representations, {results['test_articles']:,} test articles")
+    _ranked_bars(ax, names, values, "final", _RELATED_SHARE)
+    ax.set_title(f"Which text representation finds related articles? ({results['test_articles']:,} tested)")
     return ax
 
 
@@ -69,8 +71,11 @@ def plot_signal_eval(results: dict, ax: plt.Axes | None = None) -> plt.Axes:
     table = results["single_article"]
     names = list(table)
     values = [table[name]["test"]["primary"] for name in names]
-    _ranked_bars(ax, names, values, results["final_signals"]["label"], "share of related nearest neighbours")
-    ax.set_title("Signals and their combinations")
+    # "1 passage" is an implementation detail (one embedding per article); drop it from the labels.
+    labels = [name.replace(", 1 passage", "") for name in names]
+    chosen = results["final_signals"]["label"].replace(", 1 passage", "")
+    _ranked_bars(ax, labels, values, chosen, _RELATED_SHARE)
+    ax.set_title("Words, meaning, or both? (one visited article)")
     return ax
 
 
@@ -87,8 +92,13 @@ def plot_aggregation_eval(results: dict) -> plt.Figure:
         chosen: f"interests, t = {threshold}",
     }
     labels = list(aggregations.values())
-    panels = [(h, "primary", h) for h in _HISTORIES] + [
-        ("two interests, 3+2", "coverage", "coverage, 2 interests")
+    titles = {
+        "one interest, 3 articles": "1 subject, 3 articles",
+        "one interest, 5 articles": "1 subject, 5 articles",
+        "two interests, 3+2": "2 subjects, 3 + 2 articles",
+    }
+    panels = [(h, "primary", titles[h]) for h in _HISTORIES] + [
+        ("two interests, 3+2", "coverage", "2 subjects: share of subjects served")
     ]
     for ax, (history, metric, title) in zip(axes, panels, strict=True):
         values = [results["histories"][history][key]["test"][metric] for key in aggregations]
@@ -103,7 +113,7 @@ def plot_aggregation_eval(results: dict) -> plt.Figure:
         ax.spines["bottom"].set_visible(False)
         ax.set_title(title, fontsize=10)
     fig.suptitle(
-        "Aggregating a history: share of related recommendations (test half)",
+        "Combining several visited articles: quality of the 10 recommendations (higher is better)",
         x=0.01,
         ha="left",
         fontweight="bold",
