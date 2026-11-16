@@ -2,6 +2,8 @@
 
 Content-based recommender system for English Wikipedia / Fandom wiki articles built for the **Information Retrieval (`[IR]`)** course at Poznan University of Technology.
 
+**Authors:** Mateusz Niezgódka (164224), Jakub Banasiak (164184)
+
 Given a collection of previously visited articles (as **titles** or **URLs**), the system recommends the most relevant unseen articles from a local corpus of 2,200 preprocessed Wikipedia pages, each with a score in [0, 1] and a graphical explanation of that score.
 
 **Report:** [`reports/final_report.pdf`](./reports/final_report.pdf), also as an executed notebook, [`notebooks/final_report.ipynb`](./notebooks/final_report.ipynb).
@@ -145,6 +147,8 @@ Lemmas are the canonical representation (`tokens_lemmatized`). They are real wor
 ### Choosing the representation
 
 `evaluate` compares document representations by how often an article's 10 nearest neighbours are related to it by signals that do not come from its text: the same Vital articles subsection, and a shared category from a held-out half that no representation sees. The score below is their mean on 1,093 test articles; the weights in `vectors.py` were chosen on the other half.
+
+The representations differ in which part of an article they read. *Definition only* is the definition alone (the first full lead paragraph, which says what the subject is); *lead only* is the lead, the introduction above the first heading; *full text* is the whole article. *Full text + definition* adds the definition once more at weight 0.5, and *final*, the representation the recommender uses, also adds the words of the article's visible categories at weight 0.25. The *stemmed* rows build the same representation from Snowball stems instead of spaCy lemmas.
 
 | Representation | Score | Same subsection | Shared held-out category |
 | :--- | ---: | ---: | ---: |

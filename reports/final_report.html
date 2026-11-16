@@ -7829,6 +7829,7 @@ a.anchor-link {
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h1 id="Wikipedia-recommender-system:-report">Wikipedia recommender system: report<a class="anchor-link" href="#Wikipedia-recommender-system:-report">¶</a></h1><p><em>Information Retrieval project, Poznan University of Technology.</em></p>
+<p><em>Completed by:</em> Mateusz Niezgódka 164224, Jakub Banasiak 164184</p>
 <p>The system recommends English Wikipedia articles similar to a collection of visited ones. <strong>Input:</strong> a
 list of article titles or URLs. <strong>Output:</strong> a ranked list of corpus articles (title and link) with a score
 in [0, 1], and an explanation of each score.</p>
@@ -7877,9 +7878,6 @@ subsection or alphabetical prefix can crowd out the others.</li>
 running prose: infoboxes, tables, navigation templates, figures, formulas, pronunciation guides,
 citation markers and trailing sections (<em>See also</em>, <em>References</em>, <em>External links</em>) are removed. The
 title, URL, lead section, section headings, categories and outgoing links are stored separately.</p>
-<p><strong>Politeness.</strong> A descriptive <code>User-Agent</code>, at least 0.25 s between requests, <code>maxlag=5</code> (the crawler
-yields when Wikipedia's servers are busy) and exponential backoff on errors or <code>Retry-After</code>. An
-interrupted crawl resumes from a checkpoint.</p>
 </div>
 </div>
 </div>
@@ -8025,6 +8023,30 @@ charts and score explanations readable (<code>university</code>, not <code>unive
 neighbours are related to it by signals that do not come from its text: the same Vital articles
 subsection, and a shared category from a held-out half of the categories. Settings were chosen on one
 half of the articles and measured on the other half (1,093 articles).</p>
+<p><strong>How the score is computed.</strong> For each test article, its 10 most similar articles (by cosine similarity
+of the vectors) are found, and two shares are measured:</p>
+<ul>
+<li><em>same subsection</em>: how many of the 10 are in the article's Vital articles subsection, divided by 10, or
+by the number of other articles in the subsection if it has fewer than 10;</li>
+<li><em>shared category</em>: how many of the 10 share at least one held-out category with the article, divided
+by 10.</li>
+</ul>
+<p>Each share is averaged over the test articles, and the score is the mean of the two. For <strong>final</strong>:
+(0.529 + 0.197) / 2 = 0.363. Higher is better.</p>
+<p><strong>Reading the chart.</strong> Each bar is one way of turning an article into a TF-IDF vector, and its length is
+the score above. The labels mean:</p>
+<ul>
+<li><strong>definition only</strong>: just the article's definition, the first full paragraph of the lead, which says
+what the subject is;</li>
+<li><strong>lead only</strong>: just the lead, the introduction above the article's first heading;</li>
+<li><strong>full text</strong>: the whole article, lead and all sections;</li>
+<li><strong>full text + definition</strong>: the whole article plus its definition once more (weight 0.5), so the words
+that say what the article is about count more;</li>
+<li><strong>final</strong>: full text + definition, plus the words of the article's categories (weight 0.25). This is the
+representation the recommender uses, highlighted in blue. Only the visible half of the categories is
+used here, so the held-out half that the score checks is never seen;</li>
+<li><strong>…, stemmed</strong>: the same representation built from Snowball stems instead of spaCy lemmas.</li>
+</ul>
 </div>
 </div>
 </div>
@@ -8112,7 +8134,7 @@ score), the second the <strong>per-visited-article</strong> charts (how much eac
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="4.-Statistics-of-the-database">4. Statistics of the database<a class="anchor-link" href="#4.-Statistics-of-the-database">¶</a></h2><h3 id="4.1-Article-length">4.1 Article length<a class="anchor-link" href="#4.1-Article-length">¶</a></h3>
+<h2 id="4.-Statistics-of-the-database">4. Statistics of the database<a class="anchor-link" href="#4.-Statistics-of-the-database">¶</a></h2><h3 id="4.1-Article-length">4.1 Article length<a class="anchor-link" href="#4.1-Article-length">¶</a></h3><p>The x axes are logarithmic: each labelled tick is ten times the previous one.</p>
 </div>
 </div>
 </div>
@@ -8321,9 +8343,9 @@ Physical sciences: countries and empires, and the mathematics of physics.</p>
 </div>
 <div class="jp-OutputArea jp-Cell-outputArea">
 <div class="jp-OutputArea-child">
-<div class="jupyter-widgets jp-OutputArea-output" id="8ca41054-76ca-4b3d-a4de-bd3c79fcc03b" tabindex="0">
+<div class="jupyter-widgets jp-OutputArea-output" id="218f3131-e52b-46bb-b630-12a7513927c9" tabindex="0">
 <script type="text/javascript">
-var element = document.getElementById('8ca41054-76ca-4b3d-a4de-bd3c79fcc03b');
+var element = document.getElementById('218f3131-e52b-46bb-b630-12a7513927c9');
 </script>
 <script type="application/vnd.jupyter.widget-view+json">
 {"model_id": "491df7d6db5445abbcfdd3684e4a3b46", "version_major": 2, "version_minor": 0}
@@ -8622,7 +8644,18 @@ Visited: Dog
 representation (section 2): an article's recommendations count as related if they share its Vital
 articles subsection or a held-out category. Settings were tuned on half of the articles and are reported
 on the other half.</p>
-<h3 id="6.1-Signals">6.1 Signals<a class="anchor-link" href="#6.1-Signals">¶</a></h3>
+<h3 id="6.1-Signals">6.1 Signals<a class="anchor-link" href="#6.1-Signals">¶</a></h3><p><strong>Reading the chart.</strong> Each bar is one way of measuring how similar two articles are. As in section 2,
+every test article (1,093 of them) is treated as a single visited article, and the bar is the share of its
+10 most similar articles that are related to it (higher is better). The bars mean:</p>
+<ul>
+<li><strong>text</strong>: only the TF-IDF vector of section 2, so two articles are similar when they use the same
+words, weighted by how rare those words are. This is the "final" bar of section 2;</li>
+<li><strong>bge-small, 1 passage</strong>: only the sentence embedding from the <code>BAAI/bge-small-en-v1.5</code> model. Each
+article is embedded once, as one passage: its title followed by its first 150 words. Two articles are
+similar when their passages mean similar things, even if they use different words;</li>
+<li><strong>text + bge-small, 1 passage</strong>: both signals together, the formula of section 3.1 (text 0.55,
+embedding 0.45). This is what the recommender uses, highlighted in blue.</li>
+</ul>
 </div>
 </div>
 </div>
@@ -8646,9 +8679,27 @@ on the other half.</p>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <p>Text and embeddings together beat text alone by +0.015 ([+0.009, +0.022]) and the embedding alone by
 +0.026 ([+0.018, +0.034]).</p>
-<h3 id="6.2-Aggregating-a-history">6.2 Aggregating a history<a class="anchor-link" href="#6.2-Aggregating-a-history">¶</a></h3><p>Simulated histories: one interest (3 or 5 articles of one subsection) or two interests (3 + 2 articles
-from subsections of different topics). <em>Coverage</em> is the share of interests that get at least one
-recommendation.</p>
+<h3 id="6.2-Combining-several-visited-articles">6.2 Combining several visited articles<a class="anchor-link" href="#6.2-Combining-several-visited-articles">¶</a></h3><p>A user usually visits several articles, so their similarities to a candidate must be combined into one
+score. Four ways of doing this are compared:</p>
+<ul>
+<li><strong>mean (centroid)</strong>: the average similarity to all visited articles;</li>
+<li><strong>power mean, p = 4</strong>: an average that gives more weight to the visited articles the candidate is
+closest to;</li>
+<li><strong>maximum</strong>: only the similarity to the closest visited article counts;</li>
+<li><strong>interests, t = 0.35</strong> (used by the recommender, in blue): the visited articles are first grouped into
+interests (section 3.2), the mean is taken within each interest, and every interest gets its own part of
+the list.</li>
+</ul>
+<p>Each method is tested on 400 simulated users per panel, on the test half of the articles. The panels are:</p>
+<ul>
+<li><strong>one interest, 3 / 5 articles</strong>: the user read 3 or 5 articles on one subject (one Vital articles
+subsection). The bar is the share of the 10 recommendations that are related to what they read;</li>
+<li><strong>two interests, 3+2</strong>: the user read 3 articles on one subject and 2 on an unrelated one. The bar is
+the same share, averaged with the coverage from the last panel, so it also rewards serving both
+subjects;</li>
+<li><strong>coverage, 2 interests</strong>: for the same users, the share of the two subjects that get at least one
+recommendation (1.0 means both always do).</li>
+</ul>
 </div>
 </div>
 </div>
@@ -8670,9 +8721,18 @@ recommendation.</p>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p>Splitting a history into interests costs almost nothing when it has one topic (−0.001) and gains +0.102
-over the mean when it has two; it also serves 91 % of the interests instead of 69 %. A threshold of 0.35
-is the best trade-off: lower values merge unrelated interests, higher values split one interest apart.</p>
+<p><strong>What the chart shows.</strong></p>
+<ul>
+<li><strong>One subject:</strong> all four methods are close (within 0.03). The mean and the interests method are
+practically equal, because a history about one subject usually stays a single interest, and then the
+method is the plain mean. The power mean is slightly better with 5 articles (0.356 against 0.339).</li>
+<li><strong>Two subjects:</strong> here the methods differ clearly. The mean favours articles that sit between both
+subjects and fit neither, so only 69 % of the subjects get a recommendation. Grouping the history into
+interests serves 91 % of them and raises the score from 0.435 to 0.536.</li>
+</ul>
+<p><strong>The threshold t = 0.35</strong> decides when two visited articles belong to the same interest. A lower value
+puts unrelated articles into one interest, so it behaves like the plain mean; a higher value splits one
+subject into several pieces. 0.35 worked best on the tuning half.</p>
 <h3 id="6.3-Limitations">6.3 Limitations<a class="anchor-link" href="#6.3-Limitations">¶</a></h3><ul>
 <li><strong>Scores are relative.</strong> Because embeddings never drop far below 0.5, unrelated articles still score
 about 0.2. A score is meaningful compared with other scores, not as an absolute probability.</li>
@@ -8690,6 +8750,6 @@ Empire</em>) can both appear.</li>
 </main>
 </body>
 <script type="application/vnd.jupyter.widget-state+json">
-{"state": {"0a158e58244d493bace6c97627385241": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "HTMLView", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_1ee647a1ce09425aa71f00e0f8242b20", "placeholder": "\u200b", "style": "IPY_MODEL_5ed4c588e04044a1840666cdbb3ca55b", "tabbable": null, "tooltip": null, "value": "Loading\u2007weights:\u2007100%"}}, "1ee647a1ce09425aa71f00e0f8242b20": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "3d13cef2e56b421ca417825376a207c4": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "HTMLView", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_3dbc73f2fff34458afbc9dffd167f287", "placeholder": "\u200b", "style": "IPY_MODEL_f3ec2d049f2148c38365e7fdebd37aab", "tabbable": null, "tooltip": null, "value": "\u2007199\/199\u2007[00:00&lt;00:00,\u2007656.55it\/s]"}}, "3dbc73f2fff34458afbc9dffd167f287": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "491df7d6db5445abbcfdd3684e4a3b46": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HBoxModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HBoxModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "HBoxView", "box_style": "", "children": ["IPY_MODEL_0a158e58244d493bace6c97627385241", "IPY_MODEL_786b5b8126f84e49bef6f820ccf8a074", "IPY_MODEL_3d13cef2e56b421ca417825376a207c4"], "layout": "IPY_MODEL_5143de90ae7b40568115808f055acf63", "tabbable": null, "tooltip": null}}, "5143de90ae7b40568115808f055acf63": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "5ed4c588e04044a1840666cdbb3ca55b": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLStyleModel", "state": {"_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "background": null, "description_width": "", "font_size": null, "text_color": null}}, "786b5b8126f84e49bef6f820ccf8a074": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "FloatProgressModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "FloatProgressModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "ProgressView", "bar_style": "success", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_c8c8dff1db7a4fc6b03eae6647bc44b6", "max": 199.0, "min": 0.0, "orientation": "horizontal", "style": "IPY_MODEL_8b4e48c96f50480680cca17603859bcb", "tabbable": null, "tooltip": null, "value": 199.0}}, "8b4e48c96f50480680cca17603859bcb": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "ProgressStyleModel", "state": {"_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "ProgressStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "bar_color": null, "description_width": ""}}, "c8c8dff1db7a4fc6b03eae6647bc44b6": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "f3ec2d049f2148c38365e7fdebd37aab": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLStyleModel", "state": {"_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "background": null, "description_width": "", "font_size": null, "text_color": null}}}, "version_major": 2, "version_minor": 0}
+{"state": {"0a158e58244d493bace6c97627385241": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "HTMLView", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_1ee647a1ce09425aa71f00e0f8242b20", "placeholder": "\u200b", "style": "IPY_MODEL_5ed4c588e04044a1840666cdbb3ca55b", "tabbable": null, "tooltip": null, "value": "Loading\u2007weights:\u2007100%"}}, "1ee647a1ce09425aa71f00e0f8242b20": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "3d13cef2e56b421ca417825376a207c4": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "HTMLView", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_3dbc73f2fff34458afbc9dffd167f287", "placeholder": "\u200b", "style": "IPY_MODEL_f3ec2d049f2148c38365e7fdebd37aab", "tabbable": null, "tooltip": null, "value": "\u2007199\/199\u2007[00:00&lt;00:00,\u2007656.55it\/s]"}}, "3dbc73f2fff34458afbc9dffd167f287": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "491df7d6db5445abbcfdd3684e4a3b46": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HBoxModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HBoxModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "HBoxView", "box_style": "", "children": ["IPY_MODEL_0a158e58244d493bace6c97627385241", "IPY_MODEL_786b5b8126f84e49bef6f820ccf8a074", "IPY_MODEL_3d13cef2e56b421ca417825376a207c4"], "layout": "IPY_MODEL_5143de90ae7b40568115808f055acf63", "tabbable": null, "tooltip": null}}, "5143de90ae7b40568115808f055acf63": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "5ed4c588e04044a1840666cdbb3ca55b": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLStyleModel", "state": {"_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "background": null, "description_width": "", "font_size": null, "text_color": null}}, "786b5b8126f84e49bef6f820ccf8a074": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "FloatProgressModel", "state": {"_dom_classes": [], "_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "FloatProgressModel", "_view_count": null, "_view_module": "@jupyter-widgets\/controls", "_view_module_version": "2.0.0", "_view_name": "ProgressView", "bar_style": "success", "description": "", "description_allow_html": false, "layout": "IPY_MODEL_c8c8dff1db7a4fc6b03eae6647bc44b6", "max": 199, "min": 0, "orientation": "horizontal", "style": "IPY_MODEL_8b4e48c96f50480680cca17603859bcb", "tabbable": null, "tooltip": null, "value": 199}}, "8b4e48c96f50480680cca17603859bcb": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "ProgressStyleModel", "state": {"_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "ProgressStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "bar_color": null, "description_width": ""}}, "c8c8dff1db7a4fc6b03eae6647bc44b6": {"model_module": "@jupyter-widgets\/base", "model_module_version": "2.0.0", "model_name": "LayoutModel", "state": {"_model_module": "@jupyter-widgets\/base", "_model_module_version": "2.0.0", "_model_name": "LayoutModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "LayoutView", "align_content": null, "align_items": null, "align_self": null, "border_bottom": null, "border_left": null, "border_right": null, "border_top": null, "bottom": null, "display": null, "flex": null, "flex_flow": null, "grid_area": null, "grid_auto_columns": null, "grid_auto_flow": null, "grid_auto_rows": null, "grid_column": null, "grid_gap": null, "grid_row": null, "grid_template_areas": null, "grid_template_columns": null, "grid_template_rows": null, "height": null, "justify_content": null, "justify_items": null, "left": null, "margin": null, "max_height": null, "max_width": null, "min_height": null, "min_width": null, "object_fit": null, "object_position": null, "order": null, "overflow": null, "padding": null, "right": null, "top": null, "visibility": null, "width": null}}, "f3ec2d049f2148c38365e7fdebd37aab": {"model_module": "@jupyter-widgets\/controls", "model_module_version": "2.0.0", "model_name": "HTMLStyleModel", "state": {"_model_module": "@jupyter-widgets\/controls", "_model_module_version": "2.0.0", "_model_name": "HTMLStyleModel", "_view_count": null, "_view_module": "@jupyter-widgets\/base", "_view_module_version": "2.0.0", "_view_name": "StyleView", "background": null, "description_width": "", "font_size": null, "text_color": null}}}, "version_major": 2, "version_minor": 0}
 </script>
 </html>
